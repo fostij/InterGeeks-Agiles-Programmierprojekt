@@ -52,7 +52,7 @@ Verarbeitungssystem.
 | Bernard Mutabazi | mutabazi105@gmail.com |
 
 - 🏷️ **Gruppenname:** _<bitte eintragen>_
-- 📋 **Projektmanagement-Tool:** _<Jira-/>_
+- 📋 **Projektmanagement-Tool:** _<Jira-/https://github.com/fostij/InterGeeks-Agiles-Programmierprojekt.git>_
 
 ---
 
