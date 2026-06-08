@@ -52,7 +52,7 @@ Verarbeitungssystem.
 | Bernard Mutabazi | mutabazi105@gmail.com |
 
 - 🏷️ **Gruppenname:** _<bitte eintragen>_
-- 📋 **Projektmanagement-Tool:** _<Trello-/GitHub-Projects-Link eintragen>_
+- 📋 **Projektmanagement-Tool:** _<Jira-/>_
 
 ---
 
