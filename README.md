@@ -47,9 +47,9 @@ Verarbeitungssystem.
 
 | 👤 Mitglied | 📧 E-Mail |
 |---|---|
-| _Name 1_ | _e-mail_ |
-| _Name 2_ | _e-mail_ |
-| _Name 3_ | _e-mail_ |
+| Oleg Fostii | olegfostij@gmail.com |
+| Anton Duschak | anton.duschak@gmail.com |
+| Bernard Mutabazi | mutabazi105@gmail.com |
 
 - 🏷️ **Gruppenname:** _<bitte eintragen>_
 - 📋 **Projektmanagement-Tool:** _<Trello-/GitHub-Projects-Link eintragen>_
