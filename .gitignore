@@ -58,3 +58,7 @@ logs/
 .csv
 .png
 .jpg
+
+# Personal Presentation & Documentation Notes
+presentation_notes.txt
+Documentation.md
