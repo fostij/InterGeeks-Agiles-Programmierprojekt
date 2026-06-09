@@ -49,9 +49,9 @@ Verarbeitungssystem.
 |---|---|
 | Oleg Fostii | olegfostij@gmail.com |
 | Anton Duschak | anton.duschak@gmail.com |
-| Bernard Mutabazi | mutabazi105@gmail.com |
+| Bernard Turikumana | mutabazi105@gmail.com |
 
-- 🏷️ **Gruppenname:** _<bitte eintragen>_
+- 🏷️ **Gruppenname:** _<ABO_Team>_
 - 📋 **Projektmanagement-Tool:** _<Jira-/https://github.com/fostij/InterGeeks-Agiles-Programmierprojekt.git>_
 
 ---
