@@ -1,7 +1,7 @@
 import pandas as pd
 from pathlib import Path
 
-from utils.generate_dataset_with_text import generate_accident_description
+from accident_description_generator import generate_accident_description
 
 
 USD_TO_EUR_RATE = 0.92
