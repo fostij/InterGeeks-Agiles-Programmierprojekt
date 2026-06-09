@@ -55,6 +55,7 @@ Thumbs.db
 logs/
 
 
-.csv
-.png
-.jpg
+*.csv
+*.png
+*.jpg
+*.txt
