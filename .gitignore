@@ -53,3 +53,8 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+
+.csv
+.png
+.jpg
