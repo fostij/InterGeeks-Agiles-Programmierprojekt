@@ -40,7 +40,12 @@ CREATE TABLE public.unfaelle (
     interner_schadensgrad character varying(20),
     vorhergesagte_reparaturkosten numeric(10,2),
     ist_totalschaden boolean,
-    erstellt_am timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+    erstellt_am timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+
+    -- PLACE THE NEW PIPELINE COLUMNS RIGHT HERE:
+    unfall_bild_url character varying(512),       
+    audio_text_extrahiert boolean DEFAULT false, 
+    verarbeitungs_status character varying(20) DEFAULT 'ausstehend'
 );
 
 
