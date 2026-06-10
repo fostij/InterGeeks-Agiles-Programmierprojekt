@@ -69,8 +69,15 @@ def build_prepared_dataset(dataframe: pd.DataFrame) -> pd.DataFrame:
 
     return prepared
 
+def fix_name_errors(dataframe: pd.DataFrame) -> pd.DataFrame:
+    dataframe["auto_make"] = dataframe["auto_make"].replace(
+        {"Accura": "Acura", "Suburu": "Subaru"}
+        )
+    return dataframe
+
 def get_prepared_dataset() -> pd.DataFrame:
     dataframe = pd.read_csv(INPUT_FILE)
     cleaned = clean_dataset(dataframe)
-    prepared = build_prepared_dataset(cleaned)
+    fixed = fix_name_errors(cleaned)
+    prepared = build_prepared_dataset(fixed)
     return prepared
