@@ -5,7 +5,7 @@ from utils.fake_data_generators.accident_description_generator import generate_a
 
 
 USD_TO_EUR_RATE = 0.92
-INPUT_FILE = Path("dataset.csv")
+INPUT_FILE = Path("data/raw_dataset.csv")
 OUTPUT_FILE = Path("dataset_prepared.csv")
 CLEANUP_LOG_FILE = Path("data/output/dataset_cleanup_report.txt")
 
