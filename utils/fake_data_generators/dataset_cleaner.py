@@ -1,7 +1,7 @@
 import pandas as pd
 from pathlib import Path
 
-from accident_description_generator import generate_accident_description
+from utils.fake_data_generators.accident_description_generator import generate_accident_description
 
 
 USD_TO_EUR_RATE = 0.92
@@ -80,4 +80,5 @@ def get_prepared_dataset() -> pd.DataFrame:
     cleaned = clean_dataset(dataframe)
     fixed = fix_name_errors(cleaned)
     prepared = build_prepared_dataset(fixed)
+    #prepared.to_csv(OUTPUT_FILE, index=False, encoding="utf-8")
     return prepared

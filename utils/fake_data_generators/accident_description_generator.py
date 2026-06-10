@@ -3,27 +3,14 @@ from pathlib import Path
 
 import random
 
-from utils.accident_text_constants import (
-    DETAILS_MAJOR,
-    DETAILS_MINOR,
-    FRONT_COLLISION_TEMPLATES,
-    MAJOR_AIRBAGS,
-    MINOR_AIRBAGS,
-    PARKED_AIRBAGS,
-    PARKED_CAR_TEMPLATES,
+from utils.fake_data_generators.accident_text_constants import (
+    CASE_CONFIG,
+    MAJOR_SEVERITIES,
     POLICE_INFO,
-    REAR_COLLISION_TEMPLATES,
-    SIDE_COLLISION_TEMPLATES,
     SPEED_DESCRIPTIONS,
     STYLE_OPTIONS,
-    TEMPLATES_BY_STYLE_COLLISION,
-    TEMPLATES_BY_STYLE_PARKED,
-    TEMPLATES_BY_STYLE_THEFT,
-    THEFT_AIRBAGS,
-    THEFT_DETAILS,
     TIME_CONDITIONS,
     TOW_INFO,
-    VEHICLE_THEFT_TEMPLATES,
     WEATHER_CONDITIONS,
     WITNESS_INFO,
 )
@@ -60,73 +47,17 @@ def generate_accident_description(row: dict) -> str:
     severity = row['incident_severity']
     case_type = resolve_case_type(row)
 
-    if case_type == "Vehicle Theft":
-        damage_count = random.randint(2, 3)
-        damage = ", ".join(
-            random.sample(
-                THEFT_DETAILS,
-                min(damage_count, len(THEFT_DETAILS))
-            )
-        )
+    config = CASE_CONFIG[case_type]
+    severity_bucket = "major" if severity in MAJOR_SEVERITIES else "minor"
 
-        airbags = random.choice(THEFT_AIRBAGS)
+    damage_cfg = config["damage"][severity_bucket]
+    damage_count = random.randint(*damage_cfg["count"])
+    damage = ", ".join(
+        random.sample(damage_cfg["pool"], min(damage_count, len(damage_cfg["pool"])))
+    )
 
-    elif case_type == "Parked Car":
-
-        damage_count = random.randint(2, 4)
-        damage = ", ".join(
-            random.sample(
-                DETAILS_MINOR,
-                min(damage_count, len(DETAILS_MINOR))
-            )
-        )
-
-        airbags = random.choice(PARKED_AIRBAGS)
-
-    elif severity in ['Major Damage', 'Total Loss']:
-
-        damage_count = random.randint(3, 5)
-
-        damage = ", ".join(
-            random.sample(
-                DETAILS_MAJOR + DETAILS_MINOR,
-                min(damage_count, len(DETAILS_MAJOR + DETAILS_MINOR))
-            )
-        )
-
-        airbags = random.choice(MAJOR_AIRBAGS)
-
-    else:
-
-        damage_count = random.randint(2, 4)
-
-        damage = ", ".join(
-            random.sample(
-                DETAILS_MINOR,
-                min(damage_count, len(DETAILS_MINOR))
-            )
-        )
-
-        airbags = random.choice(MINOR_AIRBAGS)
-
-    # Auswahl der Unfallart
-
-    if case_type == "Vehicle Theft":
-        accident_type = random.choice(VEHICLE_THEFT_TEMPLATES)
-
-    elif case_type == "Parked Car":
-        accident_type = random.choice(PARKED_CAR_TEMPLATES)
-
-    elif case_type == "Front Collision":
-        accident_type = random.choice(FRONT_COLLISION_TEMPLATES)
-
-    elif case_type == "Rear Collision":
-        accident_type = random.choice(REAR_COLLISION_TEMPLATES)
-
-    else:
-        accident_type = random.choice(SIDE_COLLISION_TEMPLATES)
-
-    # Zufallsparameter
+    airbags = random.choice(config["airbags"][severity_bucket])
+    incident_phrase = random.choice(config["incident_phrases"])
 
     weather = random.choice(WEATHER_CONDITIONS)
     time_of_day = random.choice(TIME_CONDITIONS)
@@ -138,19 +69,13 @@ def generate_accident_description(row: dict) -> str:
     tow = random.choice(TOW_INFO)
 
     style = random.choice(STYLE_OPTIONS)
+    templates = config["templates"]
 
-    if case_type == "Vehicle Theft":
-        templates = TEMPLATES_BY_STYLE_THEFT[style]
-    elif case_type == "Parked Car":
-        templates = TEMPLATES_BY_STYLE_PARKED[style]
-    else:
-        templates = TEMPLATES_BY_STYLE_COLLISION[style]
-
-    text = random.choice(templates).format(
+    text = random.choice(templates[style]).format(
         make=make,
         model=model,
         year=year,
-        accident_type=accident_type,
+        incident_phrase=incident_phrase,
         damage=damage,
         airbags=airbags,
         weather=weather,
@@ -159,7 +84,7 @@ def generate_accident_description(row: dict) -> str:
         speed=speed,
         witness=witness,
         police=police,
-        tow=tow
+        tow=tow,
     )
 
     return " ".join(text.split())
@@ -183,4 +108,3 @@ def add_generated_text_column(input_path: Path, output_path: Path, column_name: 
         writer.writerows(rows)
 
     return len(rows)
-

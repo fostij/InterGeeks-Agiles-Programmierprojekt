@@ -153,110 +153,109 @@ TEMPLATES_BY_STYLE_COLLISION = {
     "umgangssprachlich": [
         """
         Der {make} {model} ({year}) hatte einen Crash. {time_of_day_cap} {weather}
-        kam es dazu: {accident_type} {speed}. Ergebnis: {damage}.
+        kam es dazu: {incident_phrase} {speed}. Ergebnis: {damage}.
         {airbags} {witness} {police} {tow}
         """,
         """
         Laut Fahrerin bzw. Fahrer vom {make} {model} ist der Unfall so passiert:
-        {time_of_day} {weather}, dann {accident_type}. Am Auto sieht man:
+        {time_of_day} {weather}, dann {incident_phrase}. Am Auto sieht man:
         {damage}. {airbags} {police}
         """,
         """
         Mit dem {make} {model} ({year}) lief es heute leider schief.
-        {time_of_day_cap} {weather} kam es zum Knall: {accident_type}.
+        {time_of_day_cap} {weather} kam es zum Knall: {incident_phrase}.
         Danach wurden diese Schaeden festgestellt: {damage}. {airbags} {witness} {tow}
         """,
         """
         Kurze Zusammenfassung zum {make} {model}: {time_of_day} {weather},
-        dann {accident_type} {speed}. Sichtbar beschaedigt sind: {damage}.
+        dann {incident_phrase} {speed}. Sichtbar beschaedigt sind: {damage}.
         {airbags} {police} {tow}
         """,
     ],
     "laendlich": [
         """
         Der {make} {model} mit Baujahr {year} geriet auf der Strecke in einen Unfall.
-        {time_of_day_cap}, {weather}, und dann {accident_type} {speed}.
+        {time_of_day_cap}, {weather}, und dann {incident_phrase} {speed}.
         Festgestellt wurden: {damage}. {airbags} {witness} {tow}
         """,
         """
         Beim Fahren ueber Land mit dem {make} {model} passierte der Schadenfall.
-        {time_of_day} {weather} kam es zum Vorfall: {accident_type}.
+        {time_of_day} {weather} kam es zum Vorfall: {incident_phrase}.
         Nach der Besichtigung wurden folgende Schaeden notiert: {damage}.
         {airbags} {witness} {police} {tow}
         """,
         """
         Auf der Landstrasse war der {make} {model} ({year}) unterwegs.
-        {time_of_day_cap} {weather} geschah dann Folgendes: {accident_type}.
+        {time_of_day_cap} {weather} geschah dann Folgendes: {incident_phrase}.
         Dabei entstanden diese Schaeden: {damage}. {airbags} {witness} {police}
         """,
         """
         Im laendlichen Bereich kam es mit dem {make} {model} zu einem Unfallereignis.
-        {time_of_day} {weather} trat ein {accident_type} auf, {speed}.
+        {time_of_day} {weather} trat ein {incident_phrase} auf, {speed}.
         Bei der Nachschau wurden vermerkt: {damage}. {airbags} {tow}
         """,
     ],
     "hochdeutsch": [
         """
         Das Fahrzeug {make} {model}, Baujahr {year}, war in einen Verkehrsunfall verwickelt.
-        {time_of_day_cap} {weather} ereignete sich folgender Hergang: {accident_type} {speed}.
+        {time_of_day_cap} {weather} ereignete sich folgender Hergang: {incident_phrase} {speed}.
         Im Rahmen der Begutachtung wurden folgende Schaeden festgestellt: {damage}.
         {airbags} {witness} {police} {tow}
         """,
         """
         Fuer das Fahrzeug {make} {model} wurde ein Versicherungsfall erfasst.
-        Der Unfall ereignete sich {time_of_day} {weather}. Dabei gilt: {accident_type}.
+        Der Unfall ereignete sich {time_of_day} {weather}. Dabei gilt: {incident_phrase}.
         Dokumentierte Beschaedigungen: {damage}. {airbags} {police} {tow}
         """,
         """
         Im vorliegenden Fall betrifft der Schaden das Fahrzeug {make} {model} ({year}).
-        Das Ereignis trat {time_of_day} {weather} ein; hierbei kam es dazu, dass {accident_type}.
+        Das Ereignis trat {time_of_day} {weather} ein; hierbei kam es dazu, dass {incident_phrase}.
         Die technische Erfassung dokumentiert folgende Schaeden: {damage}.
         {airbags} {witness} {police}
         """,
         """
         Die Erstaufnahme zum Fahrzeug {make} {model} beschreibt einen Unfallhergang,
-        bei dem {time_of_day} {weather} ein Szenario mit {accident_type} vorlag.
+        bei dem {time_of_day} {weather} ein Szenario mit {incident_phrase} vorlag.
         In der Schadensbewertung wurden folgende Positionen festgehalten: {damage}.
         {airbags} {witness} {tow}
         """,
     ],
 }
-
 TEMPLATES_BY_STYLE_PARKED = {
     "umgangssprachlich": [
         """
         Der {make} {model} ({year}) stand geparkt. {time_of_day_cap} {weather}
-        passierte Folgendes: {accident_type}. Festgestellt wurde: {damage}.
+        passierte Folgendes: {incident_phrase}. Festgestellt wurde: {damage}.
         {airbags} {witness} {police} {tow}
         """,
         """
         Beim geparkten {make} {model} fiel nach der Rueckkehr ein Schaden auf.
-        {time_of_day} {weather} zeigte sich: {accident_type}. Sichtbar sind {damage}.
+        {time_of_day} {weather} zeigte sich: {incident_phrase}. Sichtbar sind {damage}.
         {airbags} {police}
         """,
     ],
     "laendlich": [
         """
         Der geparkte {make} {model} ({year}) wurde im Stand beschaedigt.
-        {time_of_day_cap} {weather} ergab sich folgender Sachverhalt: {accident_type}.
+        {time_of_day_cap} {weather} ergab sich folgender Sachverhalt: {incident_phrase}.
         Vermerkt wurden: {damage}. {airbags} {witness} {tow}
         """,
         """
         Beim abgestellten {make} {model} trat ein Parkschadenfall ein.
-        {time_of_day} {weather} wurde gemeldet: {accident_type}. Schaeden: {damage}.
+        {time_of_day} {weather} wurde gemeldet: {incident_phrase}. Schaeden: {damage}.
         {airbags} {police} {tow}
         """,
     ],
     "hochdeutsch": [
         """
         Das Fahrzeug {make} {model}, Baujahr {year}, war zum Ereigniszeitpunkt geparkt.
-        {time_of_day_cap} {weather} wurde folgender Hergang dokumentiert: {accident_type}.
+        {time_of_day_cap} {weather} wurde folgender Hergang dokumentiert: {incident_phrase}.
         Bei der Aufnahme wurden folgende Beschaedigungen festgestellt: {damage}.
         {airbags} {witness} {police} {tow}
         """,
         """
         Im vorliegenden Parkschadenfall betrifft die Meldung den {make} {model}.
-        Das Ereignis trat {time_of_day} {weather} ein; dabei gilt: {accident_type}.
+        Das Ereignis trat {time_of_day} {weather} ein; dabei gilt: {incident_phrase}.
         Dokumentierte Positionen: {damage}. {airbags} {police}
         """,
     ],
@@ -266,37 +265,103 @@ TEMPLATES_BY_STYLE_THEFT = {
     "umgangssprachlich": [
         """
         Beim {make} {model} ({year}) gibt es einen Diebstahlfall.
-        {time_of_day_cap} {weather} wurde gemeldet: {accident_type}.
+        {time_of_day_cap} {weather} wurde gemeldet: {incident_phrase}.
         Aktueller Stand: {damage}. {airbags} {witness} {police}
         """,
         """
         Der {make} {model} war ploetzlich weg. {time_of_day} {weather}
-        wurde der Fall gemeldet: {accident_type}. Notiert ist: {damage}.
+        wurde der Fall gemeldet: {incident_phrase}. Notiert ist: {damage}.
         {airbags} {police}
         """,
     ],
     "laendlich": [
         """
         Fuer den {make} {model} ({year}) wurde ein Diebstahlvorfall aufgenommen.
-        {time_of_day_cap} {weather} ergab die Meldung: {accident_type}.
+        {time_of_day_cap} {weather} ergab die Meldung: {incident_phrase}.
         Vermerkt wurde folgender Sachstand: {damage}. {airbags} {witness} {police}
         """,
         """
         Beim abgestellten {make} {model} trat ein Entwendungsfall auf.
-        {time_of_day} {weather} wurde festgestellt: {accident_type}.
+        {time_of_day} {weather} wurde festgestellt: {incident_phrase}.
         Die Akte fuehrt derzeit: {damage}. {airbags} {tow}
         """,
     ],
     "hochdeutsch": [
         """
         Das Fahrzeug {make} {model}, Baujahr {year}, ist Gegenstand eines Diebstahlfalls.
-        {time_of_day_cap} {weather} wurde folgender Sachverhalt dokumentiert: {accident_type}.
+        {time_of_day_cap} {weather} wurde folgender Sachverhalt dokumentiert: {incident_phrase}.
         Der aktuelle Bearbeitungsstand lautet: {damage}. {airbags} {police}
         """,
         """
         Fuer das Fahrzeug {make} {model} wurde ein Entwendungsereignis erfasst.
-        Das Ereignis trat {time_of_day} {weather} ein; hierzu wurde festgehalten: {accident_type}.
+        Das Ereignis trat {time_of_day} {weather} ein; hierzu wurde festgehalten: {incident_phrase}.
         Dokumentierte Angaben: {damage}. {airbags} {witness} {police}
         """,
     ],
+}
+
+
+MAJOR_SEVERITIES = {"Major Damage", "Total Loss"}
+
+CASE_CONFIG = {
+    "Front Collision": {
+        "incident_phrases": FRONT_COLLISION_TEMPLATES,
+        "damage": {
+            "major": {"pool": DETAILS_MAJOR + DETAILS_MINOR, "count": (3, 5)},
+            "minor": {"pool": DETAILS_MINOR, "count": (2, 4)},
+        },
+        "airbags": {
+            "major": MAJOR_AIRBAGS,
+            "minor": MINOR_AIRBAGS,
+        },
+        "templates": TEMPLATES_BY_STYLE_COLLISION,
+    },
+    "Rear Collision": {
+        "incident_phrases": REAR_COLLISION_TEMPLATES,
+        "damage": {
+            "major": {"pool": DETAILS_MAJOR + DETAILS_MINOR, "count": (3, 5)},
+            "minor": {"pool": DETAILS_MINOR, "count": (2, 4)},
+        },
+        "airbags": {
+            "major": MAJOR_AIRBAGS,
+            "minor": MINOR_AIRBAGS,
+        },
+        "templates": TEMPLATES_BY_STYLE_COLLISION,
+    },
+    "Side Collision": {
+        "incident_phrases": SIDE_COLLISION_TEMPLATES,
+        "damage": {
+            "major": {"pool": DETAILS_MAJOR + DETAILS_MINOR, "count": (3, 5)},
+            "minor": {"pool": DETAILS_MINOR, "count": (2, 4)},
+        },
+        "airbags": {
+            "major": MAJOR_AIRBAGS,
+            "minor": MINOR_AIRBAGS,
+        },
+        "templates": TEMPLATES_BY_STYLE_COLLISION,
+    },
+    "Parked Car": {
+        "incident_phrases": PARKED_CAR_TEMPLATES,
+        "damage": {
+            "major": {"pool": DETAILS_MINOR, "count": (2, 4)},
+            "minor": {"pool": DETAILS_MINOR, "count": (2, 4)},
+        },
+        "airbags": {
+            "major": PARKED_AIRBAGS,
+            "minor": PARKED_AIRBAGS,
+        },
+        "templates": TEMPLATES_BY_STYLE_PARKED,
+    },
+    "Vehicle Theft": {
+        "incident_phrases": VEHICLE_THEFT_TEMPLATES,
+        "damage": {
+            "major": {"pool": THEFT_DETAILS, "count": (2, 3)},
+            "minor": {"pool": THEFT_DETAILS, "count": (2, 3)},
+        },
+        "airbags": {
+            "major": THEFT_AIRBAGS,
+            "minor": THEFT_AIRBAGS,
+        },
+        "templates": TEMPLATES_BY_STYLE_THEFT,
+    },
 }
