@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+.ipynb_checkpoints/
 *.py[cod]
 *.pyo
 *.pyd
@@ -9,6 +10,9 @@ __pycache__/
 dist/
 build/
 *.whl
+
+# Data files
+data/raw/  
 
 # Virtual environments
 .venv/
@@ -59,3 +63,10 @@ logs/
 *.png
 *.jpg
 *.txt
+.csv
+.png
+.jpg
+
+# Personal Presentation & Documentation Notes
+presentation_notes.txt
+Documentation.md
