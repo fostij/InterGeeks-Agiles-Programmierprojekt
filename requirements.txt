@@ -1,0 +1,14 @@
+numpy
+pandas
+matplotlib
+seaborn
+
+scikit-learn
+sentence-transformers
+pytorch
+torchvision
+xgboost 
+catboost
+
+sqlalchemy
+dotenv

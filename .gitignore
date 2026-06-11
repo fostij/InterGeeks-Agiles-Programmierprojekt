@@ -70,3 +70,5 @@ logs/
 # Personal Presentation & Documentation Notes
 presentation_notes.txt
 Documentation.md
+
+/catboost_info/
