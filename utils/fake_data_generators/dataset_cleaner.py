@@ -4,9 +4,8 @@ from pathlib import Path
 from utils.fake_data_generators.accident_description_generator import generate_accident_description
 
 
-USD_TO_EUR_RATE = 0.92
 INPUT_FILE = Path("data/raw_dataset.csv")
-OUTPUT_FILE = Path("dataset_prepared.csv")
+OUTPUT_FILE = Path("data/dataset_prepared.csv")
 CLEANUP_LOG_FILE = Path("data/output/dataset_cleanup_report.txt")
 
 def clean_dataset(dataframe: pd.DataFrame, log_path: Path = CLEANUP_LOG_FILE) -> pd.DataFrame:
@@ -47,25 +46,22 @@ def clean_dataset(dataframe: pd.DataFrame, log_path: Path = CLEANUP_LOG_FILE) ->
 def build_prepared_dataset(dataframe: pd.DataFrame) -> pd.DataFrame:
     prepared = pd.DataFrame(
         {
-            "auto_make_model": dataframe["auto_make"].astype(str).str.strip() + " " + dataframe["auto_model"].astype(str).str.strip(),
-            "auto_year": dataframe["auto_year"],
+            "incident_type": dataframe["incident_type"],
+            "collision_type": dataframe["collision_type"],
             "incident_severity": dataframe["incident_severity"],
+            "number_of_vehicles_involved": dataframe["number_of_vehicles_involved"],
+            "authorities_contacted": dataframe["authorities_contacted"],
+            "bodily_injuries": dataframe["bodily_injuries"],
+            "auto_year": dataframe["auto_year"],
+            "auto_make": dataframe["auto_make"].astype(str).str.strip(),
+            "auto_model": dataframe["auto_model"].astype(str).str.strip(),
+            "incident_hour_of_the_day": dataframe["incident_hour_of_the_day"],
+            "vehicle_claim": pd.to_numeric(dataframe["vehicle_claim"], errors="coerce").fillna(0.0),
         }
     )
+    prepared["auto_make_model"] = prepared["auto_make"] + " " + prepared["auto_model"]
 
-    collision_candidates = dataframe[["collision_type", "incident_type"]].astype("string").apply(lambda column: column.str.strip())
-    collision_candidates = collision_candidates.replace({"": pd.NA, "?": pd.NA})
-    prepared["collision_type"] = collision_candidates.bfill(axis=1).iloc[:, 0].fillna("Unknown")
-
-    claim_candidates = pd.DataFrame(
-        {
-            "total_claim_amount": pd.to_numeric(dataframe["total_claim_amount"], errors="coerce"),
-            "vehicle_claim": pd.to_numeric(dataframe["vehicle_claim"], errors="coerce"),
-        }
-    )
-    claim_amount_usd = claim_candidates.bfill(axis=1).iloc[:, 0].fillna(0.0)
-    prepared["claim_amount_eur"] = claim_amount_usd.mul(USD_TO_EUR_RATE).round(2)
-    prepared["generated_description"] = prepared.apply(generate_accident_description, axis=1)
+    prepared["description"] = prepared.apply(generate_accident_description, axis=1)
 
     return prepared
 
@@ -80,5 +76,5 @@ def get_prepared_dataset() -> pd.DataFrame:
     cleaned = clean_dataset(dataframe)
     fixed = fix_name_errors(cleaned)
     prepared = build_prepared_dataset(fixed)
-    #prepared.to_csv(OUTPUT_FILE, index=False, encoding="utf-8")
+    prepared.to_csv(OUTPUT_FILE, index=False, encoding="utf-8")
     return prepared
