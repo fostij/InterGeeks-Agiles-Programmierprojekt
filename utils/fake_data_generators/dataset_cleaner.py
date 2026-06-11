@@ -5,9 +5,9 @@ from utils.fake_data_generators.accident_description_generator import generate_a
 
 
 USD_TO_EUR_RATE = 0.92
-INPUT_FILE = Path("dataset.csv")
+INPUT_FILE = Path("data/raw_dataset.csv")
 OUTPUT_FILE = Path("dataset_prepared.csv")
-CLEANUP_LOG_FILE = Path("dataset_cleanup_report.txt")
+CLEANUP_LOG_FILE = Path("data/output/dataset_cleanup_report.txt")
 
 def clean_dataset(dataframe: pd.DataFrame, log_path: Path = CLEANUP_LOG_FILE) -> pd.DataFrame:
     cleaned = dataframe.copy()
@@ -76,7 +76,7 @@ def fix_name_errors(dataframe: pd.DataFrame) -> pd.DataFrame:
     return dataframe
 
 def get_prepared_dataset() -> pd.DataFrame:
-    dataframe = pd.read_csv(INPUT_FILE)
+    dataframe = pd.read_csv(INPUT_FILE, na_values=["?", ""])
     cleaned = clean_dataset(dataframe)
     fixed = fix_name_errors(cleaned)
     prepared = build_prepared_dataset(fixed)
