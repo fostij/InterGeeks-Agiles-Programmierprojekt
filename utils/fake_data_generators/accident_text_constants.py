@@ -147,8 +147,168 @@ MINOR_AIRBAGS = [
     "Es wurde keine Airbag-Ausloesung festgestellt.",
 ]
 
-STYLE_OPTIONS = ["umgangssprachlich", "laendlich", "hochdeutsch"]
+DETAIL_LEVELS = ["minimal", "normal", "detailed", "noisy"]
+DETAIL_LEVEL_WEIGHTS = [0.15, 0.35, 0.35, 0.15]
 
+# ── Collision templates ───────────────────────────────────────────────────────
+
+TEMPLATES_COLLISION_MINIMAL = [
+    "{incident_phrase}. Schaden: {damage}.",
+    "Unfall gemeldet. {incident_phrase}. Beschaedigungen: {damage}.",
+    "Schadensmeldung: {incident_phrase}. Betroffene Teile: {damage}.",
+    "Es wurde ein Unfall registriert. Schadensbild: {damage}.",
+    "Folgende Schaeden wurden nach dem Unfall festgestellt: {damage}.",
+]
+
+TEMPLATES_COLLISION_NORMAL = [
+    "Mein {make} {model} ({year}) war in einen Unfall verwickelt. {incident_phrase}. Schaeden: {damage}. {airbags}",
+    "Mit dem {make} {model} ({year}) gab es einen Unfall: {incident_phrase}. Beschaedigungen: {damage}.",
+    "Der {make} {model} ({year}) wurde beschaedigt. {incident_phrase}. Schadensbild: {damage}. {airbags}",
+    "Fuer den {make} {model} ({year}) liegt eine Unfallanzeige vor. {incident_phrase}. Festgestellt: {damage}. {airbags}",
+    "Beim {make} {model} ({year}) ereignete sich ein Unfall: {incident_phrase}. Sichtbare Schaeden: {damage}.",
+]
+
+TEMPLATES_COLLISION_DETAILED = [
+    (
+        "{time_of_day_cap} {weather} war mein {make} {model} ({year}) in einen Unfall verwickelt. "
+        "{incident_phrase} {speed}. Schaeden: {damage}. {airbags} {witness} {police} {tow}"
+    ),
+    (
+        "Das Fahrzeug {make} {model}, Baujahr {year}, war in einen Unfall verwickelt. "
+        "{time_of_day} {weather} ereignete sich: {incident_phrase} {speed}. "
+        "Dokumentierte Schaeden: {damage}. {airbags} {police} {tow}"
+    ),
+    (
+        "{time_of_day_cap} {weather} wurde das Fahrzeug {make} {model} ({year}) in einen Unfall "
+        "verwickelt: {incident_phrase}. Schaeden: {damage}. {airbags} {witness} {tow}"
+    ),
+    (
+        "Fuer das Fahrzeug {make} {model} ({year}) wurde ein Unfallhergang dokumentiert. "
+        "{time_of_day_cap} {weather} kam es zu: {incident_phrase} {speed}. "
+        "Schaeden: {damage}. {airbags} {police} {tow}"
+    ),
+    (
+        "Im vorliegenden Fall betrifft der Schaden den {make} {model} ({year}). "
+        "Das Ereignis trat {time_of_day} {weather} ein, dabei kam es zu: {incident_phrase}. "
+        "Schaeden: {damage}. {airbags} {witness} {police} {tow}"
+    ),
+]
+
+TEMPLATES_COLLISION_NOISY = [
+    # without vehicle info
+    "Ich war {time_of_day} {weather} unterwegs, als {incident_phrase}. {damage}. {airbags} {tow}",
+    "War gerade {weather} unterwegs, dann {incident_phrase}. {damage} kaputt. {airbags}",
+    "{time_of_day_cap} ist was passiert: {incident_phrase}. {damage} betroffen. {airbags} {police}",
+    "Ich hab keinen genauen Ablauf, aber {incident_phrase}. Sieht nicht gut aus: {damage}. {airbags}",
+    "Alles ging so schnell – {incident_phrase} {weather}. {damage} beschaedigt. {airbags} {tow}",
+    "Ich glaube {incident_phrase}. {damage} auf jeden Fall kaputt. {airbags}",
+    # with vehicle info
+    "Mein {make} {model} hatte heute einen Crash: {incident_phrase}. {damage}. {airbags}",
+    "War mit dem {make} {model} unterwegs als {incident_phrase}. {damage} kaputt. {airbags}",
+    "{time_of_day_cap} ist mir mit dem {make} {model} was passiert {weather}. {damage} beschaedigt. {airbags}",
+]
+
+# ── Parked car templates ──────────────────────────────────────────────────────
+
+TEMPLATES_PARKED_MINIMAL = [
+    "Das geparkte Fahrzeug wurde beschaedigt. Schaden: {damage}.",
+    "Am geparkten Auto wurden Schaeden festgestellt: {damage}.",
+    "{incident_phrase}. Schaden: {damage}.",
+    "Parkschaden gemeldet. Betroffene Teile: {damage}.",
+    "Schaeden am stehenden Fahrzeug: {damage}.",
+]
+
+TEMPLATES_PARKED_NORMAL = [
+    "Mein {make} {model} ({year}) stand geparkt und wurde beschaedigt. {incident_phrase}. Schaden: {damage}. {airbags}",
+    "Am geparkten {make} {model} ({year}) wurden Schaeden gemeldet. {incident_phrase}. Sichtbare Schaeden: {damage}.",
+    "Der {make} {model} ({year}) war abgestellt und wurde getroffen. {incident_phrase}. Schadensbild: {damage}. {airbags}",
+    "Fuer den {make} {model} ({year}) wurde ein Parkschadenfall erfasst. {incident_phrase}. Schaeden: {damage}. {airbags}",
+]
+
+TEMPLATES_PARKED_DETAILED = [
+    (
+        "{time_of_day_cap} {weather} stand mein {make} {model} ({year}) geparkt und wurde beschaedigt. "
+        "{incident_phrase}. Schaden: {damage}. {airbags} {witness} {police} {tow}"
+    ),
+    (
+        "Das Fahrzeug {make} {model}, Baujahr {year}, war zum Ereigniszeitpunkt geparkt. "
+        "{time_of_day} {weather} wurde folgender Hergang dokumentiert: {incident_phrase}. "
+        "Schaeden: {damage}. {airbags} {witness} {police} {tow}"
+    ),
+    (
+        "{time_of_day_cap} {weather} wurde der abgestellte {make} {model} ({year}) beschaedigt. "
+        "{incident_phrase}. Festgestellt: {damage}. {airbags} {police} {tow}"
+    ),
+    (
+        "Im vorliegenden Parkschadenfall betrifft die Meldung den {make} {model} ({year}). "
+        "Das Ereignis trat {time_of_day} {weather} ein; dabei gilt: {incident_phrase}. "
+        "Dokumentierte Schaeden: {damage}. {airbags} {police}"
+    ),
+]
+
+TEMPLATES_PARKED_NOISY = [
+    # without vehicle info
+    "Ich bin zurueckgekommen und das Auto hatte einen Schaden. {incident_phrase}. {damage}. {airbags}",
+    "Das Auto stand einfach da und jetzt ist {damage} beschaedigt. {airbags} {police}",
+    "{time_of_day_cap} war das Auto noch okay, jetzt ist {damage} kaputt. {incident_phrase}.",
+    "Jemand hat mein Auto gerammt. {damage} auf jeden Fall betroffen. {airbags}",
+    "War weg und beim Zurueckkommen: {incident_phrase}. {damage}. {airbags} {police}",
+    # with vehicle info
+    "Parkschaden an meinem {make} {model}. {incident_phrase}. Schaden: {damage}. {airbags} {tow}",
+    "Mein {make} {model} ({year}) hat jetzt nen Parkschaden. {damage}. {airbags}",
+]
+
+# ── Vehicle theft templates ───────────────────────────────────────────────────
+
+TEMPLATES_THEFT_MINIMAL = [
+    "Das Fahrzeug wurde entwendet. {damage}.",
+    "Es liegt ein Diebstahlfall vor. Angaben: {damage}.",
+    "{incident_phrase}. Stand: {damage}.",
+    "Fahrzeugdiebstahl gemeldet. Aktuell: {damage}.",
+    "Das Auto ist verschwunden. {damage}.",
+]
+
+TEMPLATES_THEFT_NORMAL = [
+    "Mein {make} {model} ({year}) wurde gestohlen. {incident_phrase}. Stand: {damage}. {airbags}",
+    "Der {make} {model} ({year}) ist entwendet worden. {incident_phrase}. Angaben: {damage}.",
+    "Fuer den {make} {model} ({year}) wurde ein Diebstahlfall erfasst. {incident_phrase}. Aktuell: {damage}. {airbags}",
+    "Diebstahl {make} {model} ({year}). {incident_phrase}. Dokumentierter Stand: {damage}.",
+]
+
+TEMPLATES_THEFT_DETAILED = [
+    (
+        "{time_of_day_cap} {weather} wurde mein {make} {model} ({year}) entwendet. "
+        "{incident_phrase}. Aktueller Stand: {damage}. {airbags} {police}"
+    ),
+    (
+        "Das Fahrzeug {make} {model}, Baujahr {year}, ist Gegenstand eines Diebstahlfalls. "
+        "{time_of_day} {weather} wurde folgender Sachverhalt dokumentiert: {incident_phrase}. "
+        "Stand: {damage}. {airbags} {police}"
+    ),
+    (
+        "Fuer das Fahrzeug {make} {model} ({year}) wurde ein Entwendungsereignis erfasst. "
+        "{time_of_day_cap} {weather} gilt: {incident_phrase}. "
+        "Dokumentierte Angaben: {damage}. {airbags} {witness} {police}"
+    ),
+    (
+        "Im vorliegenden Diebstahlfall ist das Fahrzeug {make} {model} ({year}) betroffen. "
+        "Das Ereignis trat {time_of_day} {weather} ein; dabei wurde festgehalten: {incident_phrase}. "
+        "Dokumentierte Angaben: {damage}. {airbags} {police}"
+    ),
+]
+
+TEMPLATES_THEFT_NOISY = [
+    # without vehicle info
+    "Das Auto ist weg. {incident_phrase}. {damage}. {airbags} {police}",
+    "Jemand hat mein Auto geklaut. {incident_phrase}. {damage}. {police}",
+    "Diebstahl gemeldet. {incident_phrase}. {damage}. {airbags} {police}",
+    # with vehicle info
+    "Mein {make} {model} ist gestohlen worden. {incident_phrase}. {damage}. {police}",
+    "{time_of_day_cap} war {make} {model} noch da, jetzt nicht mehr. {incident_phrase}. {damage}. {police}",
+    "Ich hab meinen {make} {model} ({year}) nicht mehr gefunden. {incident_phrase}. {damage}.",
+]
+
+# ── Legacy placeholder (kept for backward compat) ─────────────────────────────
 TEMPLATES_BY_STYLE_COLLISION = {
     "umgangssprachlich": [
         """
@@ -301,6 +461,79 @@ TEMPLATES_BY_STYLE_THEFT = {
 }
 
 
+# ── Component-based NER training generation ───────────────────────────────────
+
+VEHICLE_REF_WITH_YEAR = [
+    "{make} {model} ({year})",
+    "{make} {model}, Baujahr {year}",
+    "{year}er {make} {model}",
+    "{make} {model} aus {year}",
+    "{model} von {make}, Baujahr {year}",
+    "{make} {model} mit Baujahr {year}",
+]
+
+VEHICLE_REF_WITHOUT_YEAR = [
+    "{make} {model}",
+    "{make} Modell {model}",
+    "{model} von {make}",
+    "Fahrzeug {model} ({make})",
+]
+
+VEHICLE_INTRO_TEMPLATES = [
+    "Betroffen: {vehicle_ref}.",
+    "Fahrzeug: {vehicle_ref}.",
+    "Das betroffene Fahrzeug ist {vehicle_ref}.",
+    "Es handelt sich um {vehicle_ref}.",
+    "Das Fahrzeug: {vehicle_ref}.",
+    "Gemeldet wurde {vehicle_ref}.",
+    "Das Fahrzeug wurde als {vehicle_ref} identifiziert.",
+    "Meldung fuer {vehicle_ref}.",
+]
+
+VEHICLE_IN_EVENT_TEMPLATES = [
+    "Es kam zu einem Unfall mit {vehicle_ref}: {incident_phrase}.",
+    "{vehicle_ref} war in folgenden Unfall verwickelt: {incident_phrase}.",
+    "Unfall mit {vehicle_ref} – {incident_phrase}.",
+    "{incident_phrase} – Fahrzeug: {vehicle_ref}.",
+    "Schadensmeldung fuer {vehicle_ref}: {incident_phrase}.",
+    "Beim Fahrzeug {vehicle_ref}: {incident_phrase}.",
+]
+
+EVENT_STANDALONE_TEMPLATES = [
+    "{incident_phrase}.",
+    "Zum Vorfall: {incident_phrase}.",
+    "Gemeldet wurde: {incident_phrase}.",
+    "Vorfall: {incident_phrase}.",
+    "Das Ereignis: {incident_phrase}.",
+    "Hergang: {incident_phrase}.",
+    "Schadensereignis: {incident_phrase}.",
+    "Unfallhergang: {incident_phrase}.",
+]
+
+DAMAGE_INTRO_TEMPLATES = [
+    "Schaden: {damage}.",
+    "Festgestellte Schaeden: {damage}.",
+    "Beschaedigungen: {damage}.",
+    "Schadensbild: {damage}.",
+    "Karosserieschaden: {damage}.",
+    "Am Fahrzeug wurden folgende Schaeden festgestellt: {damage}.",
+    "Es wurden folgende Schaeden notiert: {damage}.",
+    "Betroffen sind: {damage}.",
+    "Die Schaeden umfassen: {damage}.",
+    "Sichtbare Schaeden: {damage}.",
+    "Schadensbewertung: {damage}.",
+]
+
+YEAR_STANDALONE_TEMPLATES = [
+    "Das Fahrzeug ist Baujahr {year}.",
+    "Baujahr: {year}.",
+    "Es handelt sich um ein Fahrzeug aus dem Jahr {year}.",
+    "Das Modell stammt aus {year}.",
+    "Erstzulassung: {year}.",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+
 MAJOR_SEVERITIES = {"Major Damage", "Total Loss"}
 
 CASE_CONFIG = {
@@ -314,7 +547,12 @@ CASE_CONFIG = {
             "major": MAJOR_AIRBAGS,
             "minor": MINOR_AIRBAGS,
         },
-        "templates": TEMPLATES_BY_STYLE_COLLISION,
+        "templates": {
+            "minimal": TEMPLATES_COLLISION_MINIMAL,
+            "normal": TEMPLATES_COLLISION_NORMAL,
+            "detailed": TEMPLATES_COLLISION_DETAILED,
+            "noisy": TEMPLATES_COLLISION_NOISY,
+        },
     },
     "Rear Collision": {
         "incident_phrases": REAR_COLLISION_TEMPLATES,
@@ -326,7 +564,12 @@ CASE_CONFIG = {
             "major": MAJOR_AIRBAGS,
             "minor": MINOR_AIRBAGS,
         },
-        "templates": TEMPLATES_BY_STYLE_COLLISION,
+        "templates": {
+            "minimal": TEMPLATES_COLLISION_MINIMAL,
+            "normal": TEMPLATES_COLLISION_NORMAL,
+            "detailed": TEMPLATES_COLLISION_DETAILED,
+            "noisy": TEMPLATES_COLLISION_NOISY,
+        },
     },
     "Side Collision": {
         "incident_phrases": SIDE_COLLISION_TEMPLATES,
@@ -338,7 +581,12 @@ CASE_CONFIG = {
             "major": MAJOR_AIRBAGS,
             "minor": MINOR_AIRBAGS,
         },
-        "templates": TEMPLATES_BY_STYLE_COLLISION,
+        "templates": {
+            "minimal": TEMPLATES_COLLISION_MINIMAL,
+            "normal": TEMPLATES_COLLISION_NORMAL,
+            "detailed": TEMPLATES_COLLISION_DETAILED,
+            "noisy": TEMPLATES_COLLISION_NOISY,
+        },
     },
     "Parked Car": {
         "incident_phrases": PARKED_CAR_TEMPLATES,
@@ -350,7 +598,12 @@ CASE_CONFIG = {
             "major": PARKED_AIRBAGS,
             "minor": PARKED_AIRBAGS,
         },
-        "templates": TEMPLATES_BY_STYLE_PARKED,
+        "templates": {
+            "minimal": TEMPLATES_PARKED_MINIMAL,
+            "normal": TEMPLATES_PARKED_NORMAL,
+            "detailed": TEMPLATES_PARKED_DETAILED,
+            "noisy": TEMPLATES_PARKED_NOISY,
+        },
     },
     "Vehicle Theft": {
         "incident_phrases": VEHICLE_THEFT_TEMPLATES,
@@ -362,6 +615,11 @@ CASE_CONFIG = {
             "major": THEFT_AIRBAGS,
             "minor": THEFT_AIRBAGS,
         },
-        "templates": TEMPLATES_BY_STYLE_THEFT,
+        "templates": {
+            "minimal": TEMPLATES_THEFT_MINIMAL,
+            "normal": TEMPLATES_THEFT_NORMAL,
+            "detailed": TEMPLATES_THEFT_DETAILED,
+            "noisy": TEMPLATES_THEFT_NOISY,
+        },
     },
 }
