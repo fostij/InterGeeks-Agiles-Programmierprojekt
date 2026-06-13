@@ -1,6 +1,7 @@
-from utils.fake_data_generators.dataset_cleaner import get_prepared_dataset
+from machine_learning.test_predict import run_test
+
 def main() -> None:
-    s = get_prepared_dataset()
+    run_test()
     return
 
 if __name__ == "__main__":
