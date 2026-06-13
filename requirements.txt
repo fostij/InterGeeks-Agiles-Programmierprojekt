@@ -15,6 +15,11 @@ seaborn
 sentence-transformers
 pytorch
 torchvision
+xgboost 
+catboost
+transformers
+datasets
+torch
 
 sqlalchemy
 dotenv
