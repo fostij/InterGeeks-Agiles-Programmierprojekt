@@ -1,5 +1,7 @@
+import json
 import random
 import re
+import pandas as pd
 
 from utils.fake_data_generators.accident_text_constants import (
     CASE_CONFIG,
@@ -51,8 +53,66 @@ def generate_accident_description(row: dict) -> str:
     
     return text
 
-def get_labels(target_fields: list[str], row: dict) -> dict:
-    return {field: row.get(field, "") for field in target_fields}
+def generate_accident_description_with_labels(row: dict, target_fields: list[str]) -> tuple[str, dict]:
+    make, model = row.get("auto_make", "").strip(), row.get("auto_model", "").strip()
+    year, severity = row["auto_year"], row["incident_severity"]
+    
+    case_type = _resolve_case_type(row)
+    config = CASE_CONFIG[case_type]
+    severity_bucket = "major" if severity in MAJOR_SEVERITIES else "minor"
+    
+    detail_level = random.choices(DETAIL_LEVELS, weights=DETAIL_LEVEL_WEIGHTS, k=1)[0]
+    context_vars = _generate_context_fields(config, severity_bucket, detail_level)
+    
+    damage = _generate_damage_string(config["damage"][severity_bucket])
+    incident_phrase = random.choice(config["incident_phrases"])
+    
+    strategy = _determine_strategy(make, model, detail_level)
+    core_parts = _build_core_sentences(strategy, make, model, year, incident_phrase, damage)
+    
+    core_parts = _inject_context_and_extras(core_parts, context_vars)
+    
+    labels = get_labels(target_fields, row, context_vars, strategy)
+
+    text = " ".join(" ".join(core_parts).split())
+    
+    return text, labels
+
+def get_labels(target_fields: list[str], row: dict, context_vars: dict, strategy: str) -> dict:
+    labels = {}
+    
+    vehicle_present = (strategy != "no_vehicle")
+    
+    # 2. Проверяем, попал ли год (в стратегии 'distant' или при with_year=True)
+    # Так как inside _build_core_sentences есть рандом `with_year = random.random() > 0.25`,
+    # лучше передавать флаг `with_year` наружу или проверять факт наличия года по выбранной стратегии.
+    # Для надежности: если стратегия no_vehicle, года точно нет.
+    year_present = (strategy != "no_vehicle") # упрощенно, либо завязать на точный флаг из сборщика
+    
+    for field in target_fields:
+        val = row.get(field, "")
+        
+         # Base table missing data check
+        if val == "" or pd.isna(val) or val == "?":
+            # For numeric fields, we use -100 so the regression loss ignores it
+            labels[field] = -100 if field in ["auto_year", "number_of_vehicles_involved", "witnesses"] else None
+            continue
+
+        # Фильтрация по логике генератора:
+        if field in ["auto_make", "auto_model"] and not vehicle_present:
+            labels[field] = None
+        elif field == "auto_year" and not year_present:
+            labels[field] = -100
+        elif field == "weather" and context_vars.get("weather") == "":
+            labels[field] = None
+        elif field == "witnesses" and context_vars.get("witness") == "":
+            labels[field] = -100
+        elif field == "authorities_contacted" and context_vars.get("police") == "":
+            labels[field] = None
+        else:
+            labels[field] = val
+            
+    return labels
 
 def _resolve_case_type(row: dict) -> str:
     incident_type = str(row.get("incident_type", "")).strip()

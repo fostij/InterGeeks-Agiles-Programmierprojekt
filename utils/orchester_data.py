@@ -1,8 +1,8 @@
 from typing import Dict, List, Any
 import pandas as pd
-
+from sklearn.preprocessing import LabelEncoder
 from utils.dataset_cleaner import INPUT_FILE, clean_dataset, fix_name_errors
-from utils.fake_data_generators.accident_description_generator import generate_accident_description, get_labels
+from utils.fake_data_generators.accident_description_generator import generate_accident_description, generate_accident_description_with_labels, get_labels
 
 TARGET_FIELDS = [
         "auto_year", 
@@ -50,7 +50,7 @@ def get_dataset_with_descriptions_and_tags() -> tuple[pd.DataFrame, list[dict]]:
     df = df.drop(columns=["temp_metadata"])
     return df, metadata_list
 
-def get_description_and_labels(count: int) ->  List[Dict[str, Any]]:
+def get_descriptions_and_labels(count: int) ->  List[Dict[str, Any]]:
     if count <= 0:
         return []
     
@@ -64,14 +64,16 @@ def get_description_and_labels(count: int) ->  List[Dict[str, Any]]:
         if row_index >= len(df):
             row_index = 0
 
-        row = df.iloc[row_index].to_dict()
+        row_df = df.iloc[row_index]
+        row = row_df.to_dict()
 
-        description = generate_accident_description(row)
-        labels = get_labels(TARGET_FIELDS, row)
-
+        description, labels = generate_accident_description_with_labels(row, TARGET_FIELDS)
+        target_price = float(row_df.get("vehicle_claim", 0.0))
+        
         results.append({
             "text": description,
             "labels": labels,
+            "target_price": target_price
         })
 
         i += 1

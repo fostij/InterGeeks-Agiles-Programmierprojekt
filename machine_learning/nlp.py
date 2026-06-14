@@ -1,6 +1,6 @@
 import json
 
-from utils.orchester_data import get_description_and_labels
+from utils.orchester_data import get_descriptions_and_labels
 from datasets import Dataset
 from transformers import AutoTokenizer
 from transformers import AutoModelForSequenceClassification
@@ -80,7 +80,7 @@ def make_prediction() -> None:
 
 
 def build_incident_type_dataset(size: int = 20000) -> tuple[Dataset, dict[str, int], dict[int, str]]:
-    samples = get_description_and_labels(size)
+    samples = get_descriptions_and_labels(size)
 
     texts = []
     labels = []
@@ -174,7 +174,7 @@ def make_prediction_seq2seq() -> None:
 
 
 def build_ie_dataset(size: int = 20000) -> Dataset:
-    samples = get_description_and_labels(size)
+    samples = get_descriptions_and_labels(size)
 
     inputs = []
     targets = []
