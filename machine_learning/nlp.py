@@ -8,6 +8,7 @@ from transformers import TrainingArguments, Trainer
 from transformers import pipeline
 from datasets import Dataset
 from transformers import AutoModelForSeq2SeqLM, DataCollatorForSeq2Seq
+import torch
 
 
 GERMAN_MODEL_NAME = "bert-base-german-cased"
@@ -103,8 +104,6 @@ def build_incident_type_dataset(size: int = 20000) -> tuple[Dataset, dict[str, i
     return dataset, label2id, id2label
 
 
-
-
 def make_prediction_seq2seq() -> None:
 
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
@@ -169,27 +168,9 @@ def make_prediction_seq2seq() -> None:
     tokenizer.save_pretrained("./flan_ie_model")
     
     model.eval()
+    device = model.device
 
-    def predict(text: str):
-        inputs = tokenizer(text, return_tensors="pt", truncation=True)
-
-        output = model.generate(
-            **inputs,
-            max_length=128
-        )
-
-        return tokenizer.decode(output[0], skip_special_tokens=True)
     
-    print(
-        predict("Schwerer Unfall mit Audi A4 (2023) nach Frontalaufprall gegen Baum. Airbags ausgelöst.")
-    )
-    print(
-        predict("Schwerer Frontalunfall in Berlin: Ein VW Golf (2020) prallte gegen eine Wand. Airbags haben ausgelöst, Totalschaden. Keine Verletzten")
-    )
-    print(
-        predict("Hey, hab gerade beim Ausparken in München Mist gebaut. Bin mit meinem Audi A3 (2018) rückwärts gegen einen Pfosten gerollt. Ist zum Glück nur ein kleiner Kratzer an der Stoßstange.")
-    )
-
 
 
 def build_ie_dataset(size: int = 20000) -> Dataset:

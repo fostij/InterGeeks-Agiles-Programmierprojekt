@@ -5,11 +5,20 @@ from utils.dataset_cleaner import INPUT_FILE, clean_dataset, fix_name_errors
 from utils.fake_data_generators.accident_description_generator import generate_accident_description, get_labels
 
 TARGET_FIELDS = [
-        "auto_year", "auto_make", "auto_model",
-        "incident_type", "incident_severity", "incident_city", "incident_state",
-        "collision_type", "property_damage", "witnesses",
-        "authorities_contacted", "police_report_available",
-        "number_of_vehicles_involved", "bodily_injuries"
+        "auto_year", 
+        "auto_make", 
+        "auto_model",
+        "incident_type", 
+        "incident_severity", 
+        "incident_city", 
+        "incident_state",
+        "collision_type", 
+        "property_damage", 
+        "witnesses",
+        "authorities_contacted", 
+        "police_report_available",
+        "number_of_vehicles_involved", 
+        "bodily_injuries"
     ]
 
 def get_cleaned_dataset() -> pd.DataFrame:
