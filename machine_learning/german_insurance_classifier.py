@@ -6,7 +6,10 @@ from torch.utils.data import Dataset
 from transformers import AutoTokenizer
 
 class GermanInsuranceDataset(Dataset):
-    def __init__(self, jsonl_path: str, tokenizer_name: str = "uklfr/gottbert-base", max_len: int = 256):
+    def __init__(self, jsonl_path: str, 
+                 tokenizer_name: str = "uklfr/gottbert-base", 
+                 max_len: int = 256,
+                 numeric_stats: dict = None):
         self.samples = []
         with open(jsonl_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -15,7 +18,7 @@ class GermanInsuranceDataset(Dataset):
         
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
         self.max_len = max_len
-
+        self.numeric_stats = numeric_stats
     def __len__(self):
         return len(self.samples)
 
@@ -39,11 +42,15 @@ class GermanInsuranceDataset(Dataset):
             "attention_mask": encoding["attention_mask"].squeeze(0),
             "target_price": torch.tensor(target_price, dtype=torch.float32)
         }
+        
+        mean_year = self.numeric_stats["auto_year"]["mean"] if self.numeric_stats else 0
+        std_year = self.numeric_stats["auto_year"]["std"] if self.numeric_stats else 0
 
         # Dynamic multi-head labels extraction
         for field, val in labels.items():
             # Keep numeric columns as float values, classification values as long index IDs
             if field in ["auto_year", "number_of_vehicles_involved", "witnesses"]:
+                val = (val - self.numeric_stats[field]["mean"]) / self.numeric_stats[field]["std"]
                 item[f"label_{field}"] = torch.tensor(val, dtype=torch.float32)
             else:
                 item[f"label_{field}"] = torch.tensor(val, dtype=torch.long)
@@ -109,7 +116,7 @@ class DynamicMultiHeadLoss(nn.Module):
         for field in self.target_fields:
             pred_logits = predictions[field]          # What the head predicted
             true_labels = batch[f"label_{field}"]      # Ground truth from JSONL
-            
+
             # Numeric columns (Regression)
             if field in ["auto_year", "number_of_vehicles_involved", "witnesses"]:
                 # Create a binary filter mask (1.0 for valid numbers, 0.0 for -100)
@@ -121,6 +128,7 @@ class DynamicMultiHeadLoss(nn.Module):
                 # Only add numeric loss if there is at least one valid example in the batch
                 if mask.sum() > 0:
                     total_loss += masked_loss.sum() / mask.sum()
+                    
             
             # Categorical columns (Classification)
             else:

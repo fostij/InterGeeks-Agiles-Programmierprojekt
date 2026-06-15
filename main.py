@@ -1,5 +1,7 @@
+from utils.orchester_data import get_cleaned_dataset
 from machine_learning.multi_head import run_training
 def main() -> None:
+    s = get_cleaned_dataset()
     run_training()
     return
 

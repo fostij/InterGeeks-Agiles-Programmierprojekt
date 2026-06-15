@@ -3,12 +3,14 @@ from torch.utils.data import DataLoader
 from torch.optim import AdamW
 from machine_learning.german_insurance_classifier import GermanInsuranceDataset, GermanInsuranceClassifier, DynamicMultiHeadLoss
 from utils.labels_encoder import prepare_pipeline_and_save_jsonl
+from utils.discreptive_statistic import get_descriptive_statistics_for_numeric
+import pandas as pd
 import json
 
 def run_training():
     # --- 1. Execution Setup ---
-    #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #print(f"Using processing engine: {device}")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using processing engine: {device}")
 
     # TARGET_FIELDS list as defined in your prompt layout
     TARGET_FIELDS = [
@@ -33,7 +35,8 @@ def run_training():
         final_network_config = json.load(f)
 
     # --- 2. Initialize Data Iterators ---
-    dataset = GermanInsuranceDataset(jsonl_path=DATASET_PATH)
+    num_stats = get_descriptive_statistics_for_numeric(pd.read_csv("./data/raw/dataset.csv")) # Assuming you have the original CSV for stats calculation
+    dataset = GermanInsuranceDataset(jsonl_path=DATASET_PATH, numeric_stats=num_stats)
     # Start with a conservative batch size (e.g. 4 or 8) to avoid memory crashes
     train_loader = DataLoader(dataset, batch_size=4, shuffle=True)
 
