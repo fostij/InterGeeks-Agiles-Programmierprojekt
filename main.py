@@ -1,7 +1,6 @@
-from utils.labels_encoder import prepare_pipeline_and_save_jsonl
-
+from machine_learning.multi_head import run_training
 def main() -> None:
-    prepare_pipeline_and_save_jsonl(1000, "data/output/output.jsonl")
+    run_training()
     return
 
 if __name__ == "__main__":

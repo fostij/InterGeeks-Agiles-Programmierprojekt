@@ -10,17 +10,12 @@ NUMERIC_FIELDS = ["auto_year", "number_of_vehicles_involved", "witnesses"]
 CATEGORICAL_FIELDS = [f for f in TARGET_FIELDS if f not in NUMERIC_FIELDS]
 
 def prepare_pipeline_and_save_jsonl(count: int, output_file: str) -> dict:
-    """
-    1. Collects raw text and labels using your looping method.
-    2. Builds LabelEncoder instances recognizing 'None' as a valid class.
-    3. Transforms the list into encoded indices and exports to JSONL.
-    """
     # Step 1: Use your list loop generator to fetch raw samples
     # (Temporarily returns string names and None values)
-    raw_samples = get_descriptions_and_labels(count)
+    df_cleaned = get_cleaned_dataset()
+    raw_samples = get_descriptions_and_labels(count, df_cleaned)
     
     # Extract unique values to train our LabelEncoders
-    df_cleaned = get_cleaned_dataset()
     label_encoders = {}
     num_classes_dict = {}
     

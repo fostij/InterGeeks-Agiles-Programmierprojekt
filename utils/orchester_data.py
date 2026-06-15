@@ -1,9 +1,9 @@
 from typing import Dict, List, Any
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
-from utils.dataset_cleaner import INPUT_FILE, clean_dataset, fix_name_errors
-from utils.fake_data_generators.accident_description_generator import generate_accident_description, generate_accident_description_with_labels, get_labels
-
+from pathlib import Path
+from utils.dataset_cleaner import clean_dataset, fix_name_errors
+from utils.fake_data_generators.accident_description_generator import generate_accident_description, generate_accident_description_with_labels
+INPUT_FILE = Path("data/raw/dataset.csv")
 TARGET_FIELDS = [
         "auto_year", 
         "auto_make", 
@@ -50,12 +50,10 @@ def get_dataset_with_descriptions_and_tags() -> tuple[pd.DataFrame, list[dict]]:
     df = df.drop(columns=["temp_metadata"])
     return df, metadata_list
 
-def get_descriptions_and_labels(count: int) ->  List[Dict[str, Any]]:
+def get_descriptions_and_labels(count: int, df: pd.DataFrame) ->  List[Dict[str, Any]]:
     if count <= 0:
         return []
     
-    df = get_cleaned_dataset()
-
     i = 0
     row_index = 0
     results = []
