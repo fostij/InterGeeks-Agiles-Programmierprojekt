@@ -80,3 +80,6 @@ Documentation.md
 /flan_ie_model/
 *.jsonl
 network_config.json
+*.pt
+/data/output/
+/data/raw/
