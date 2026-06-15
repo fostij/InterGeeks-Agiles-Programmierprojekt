@@ -75,7 +75,7 @@ class AccidentDataGenerator:
         context_vars = self._generate_context_fields(config, severity_bucket, detail_level, rng)
         
         incident_phrase = rng.choice(config["incident_phrases"])
-        damage_string = self._generate_damage_string(config["damage"][severity_bucket])
+        damage_string = self._generate_damage_string(config["damage"][severity_bucket], rng)
         
         strategy = self._determine_strategy(make, model, detail_level, rng)
         with_year = strategy != "no_vehicle" and rng.random() > 0.25
