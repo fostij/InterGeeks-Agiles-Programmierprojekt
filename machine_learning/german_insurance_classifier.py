@@ -1,6 +1,4 @@
 import json
-from attrs import field
-from numpy.random import sample
 import torch
 import torch.nn as nn
 from transformers import AutoModel

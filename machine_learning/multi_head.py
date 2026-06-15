@@ -1,10 +1,8 @@
-from xml.parsers.expat import model
-
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 from torch.optim import AdamW
-from transformers import dataclass
+from dataclasses import dataclass
 from machine_learning.german_insurance_classifier import GermanInsuranceDataset, GermanInsuranceClassifier, DynamicMultiHeadLoss
 from utils.labels_encoder import prepare_pipeline_and_save_jsonl
 from utils.discreptive_statistic import get_descriptive_statistics_for_numeric
@@ -48,7 +46,7 @@ def build_save_set_network_config(cfg: TrainConfig):
     print("✓ The head size configuration has been successfully saved to disk.")
     return final_network_config, num_classes_dict
 
-def build_dataloaders(cfg: TrainConfig, num_stats, dataset):
+def build_dataloaders(cfg: TrainConfig, dataset):
     train_size = int(cfg.train_split * len(dataset))
     val_size = len(dataset) - train_size
 
