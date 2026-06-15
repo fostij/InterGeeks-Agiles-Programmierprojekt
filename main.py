@@ -1,7 +1,15 @@
-from utils.orchester_data import get_cleaned_dataset
-from machine_learning.multi_head import run_training
+from machine_learning.multi_head import TrainConfig, run_training
+from ml_config import DATASET_PATH, NETWORK_CONFIG_PATH, INPUT_FILE, OUTPUT_CHECKPOINT
 def main() -> None:
-    run_training()
+    cfg = TrainConfig(
+        dataset_path=DATASET_PATH,
+        input_file=INPUT_FILE,
+        network_config_path=NETWORK_CONFIG_PATH,
+        output_checkpoint=OUTPUT_CHECKPOINT,
+        epochs=5,
+        dataset_count=5000,
+    )
+    run_training(cfg)
     return
 
 if __name__ == "__main__":

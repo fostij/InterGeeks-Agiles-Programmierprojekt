@@ -8,7 +8,6 @@ from utils.labels_encoder import prepare_pipeline_and_save_jsonl
 from utils.discreptive_statistic import get_descriptive_statistics_for_numeric
 import pandas as pd
 import json
-from ml_config import DATASET_PATH, NETWORK_CONFIG_PATH, INPUT_FILE, OUTPUT_CHECKPOINT
 from machine_learning.eval import evaluate
 
 @dataclass
@@ -21,10 +20,10 @@ class TrainConfig:
     dataset_count: int = 1000
     model_name: str = "uklfr/gottbert-base"
 
-    dataset_path: str = DATASET_PATH
-    input_file: str = INPUT_FILE
-    network_config_path: str = NETWORK_CONFIG_PATH
-    output_checkpoint: str = OUTPUT_CHECKPOINT
+    dataset_path: str = None
+    input_file: str = None
+    network_config_path: str = None
+    output_checkpoint: str = None
 
     network_config: dict = None
 
