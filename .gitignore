@@ -79,3 +79,4 @@ Documentation.md
 /incident_type_model/
 /flan_ie_model/
 *.jsonl
+network_config.json
