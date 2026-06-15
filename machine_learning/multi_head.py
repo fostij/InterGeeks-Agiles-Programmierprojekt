@@ -6,36 +6,26 @@ from utils.labels_encoder import prepare_pipeline_and_save_jsonl
 from utils.discreptive_statistic import get_descriptive_statistics_for_numeric
 import pandas as pd
 import json
+from ml_config import TARGET_FIELDS, DATASET_PATH, NETWORK_CONFIG_PATH, INPUT_FILE
 
 def run_training():
     # --- 1. Execution Setup ---
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using processing engine: {device}")
 
-    # TARGET_FIELDS list as defined in your prompt layout
-    TARGET_FIELDS = [
-        "auto_year", "auto_make", "auto_model", "incident_type", 
-        "incident_severity", "incident_city", "incident_state",
-        "collision_type", "property_damage", "witnesses",
-        "authorities_contacted", "number_of_vehicles_involved"
-    ]
-
-    # Provide your generated file paths here
-    DATASET_PATH = "./data/output/output.jsonl" 
-
     # Pass the exact num_classes_dict that your data preparation script printed out
     # Example shape mapping:
     num_classes_dict = prepare_pipeline_and_save_jsonl(count=1000, output_file=DATASET_PATH)
 
-    with open("network_config.json", "w", encoding="utf-8") as f:
+    with open(NETWORK_CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(num_classes_dict, f, indent=4)
     print("✓ Конфигурация размеров голов успешно сохранена на диск.")
 
-    with open("network_config.json", "r", encoding="utf-8") as f:
+    with open(NETWORK_CONFIG_PATH, "r", encoding="utf-8") as f:
         final_network_config = json.load(f)
 
     # --- 2. Initialize Data Iterators ---
-    num_stats = get_descriptive_statistics_for_numeric(pd.read_csv("./data/raw/dataset.csv")) # Assuming you have the original CSV for stats calculation
+    num_stats = get_descriptive_statistics_for_numeric(pd.read_csv(INPUT_FILE))
     dataset = GermanInsuranceDataset(jsonl_path=DATASET_PATH, numeric_stats=num_stats)
     # Start with a conservative batch size (e.g. 4 or 8) to avoid memory crashes
     train_loader = DataLoader(dataset, batch_size=4, shuffle=True)

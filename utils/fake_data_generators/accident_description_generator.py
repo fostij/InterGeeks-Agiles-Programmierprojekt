@@ -1,6 +1,7 @@
 import random
 import pandas as pd
 from dataclasses import dataclass
+from ml_config import VALID_CASE_TYPES
 from utils.fake_data_generators.accident_text_constants import (
     CASE_CONFIG,
     DAMAGE_INTRO_TEMPLATES,
@@ -19,14 +20,6 @@ from utils.fake_data_generators.accident_text_constants import (
     WITNESS_INFO,
     YEAR_STANDALONE_TEMPLATES,
 )
-
-VALID_CASE_TYPES = {
-    "Front Collision",
-    "Parked Car",
-    "Rear Collision",
-    "Side Collision",
-    "Vehicle Theft",
-}
 
 @dataclass
 class GenerationContext:

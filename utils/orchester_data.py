@@ -1,25 +1,8 @@
 from typing import Dict, List, Any
 import pandas as pd
-from pathlib import Path
 from utils.dataset_cleaner import clean_dataset, fix_name_errors
 from utils.fake_data_generators.accident_description_generator import generate_accident_description, generate_accident_description_with_labels
-INPUT_FILE = Path("data/raw/dataset.csv")
-TARGET_FIELDS = [
-        "auto_year", 
-        "auto_make", 
-        "auto_model",
-        "incident_type", 
-        "incident_severity", 
-        "incident_city", 
-        "incident_state",
-        "collision_type", 
-        "property_damage", 
-        "witnesses",
-        "authorities_contacted", 
-        "police_report_available",
-        "number_of_vehicles_involved", 
-        "bodily_injuries"
-    ]
+from ml_config import INPUT_FILE, TARGET_FIELDS
 
 def get_cleaned_dataset() -> pd.DataFrame:
     dataframe = pd.read_csv(INPUT_FILE, na_values=["?", ""])

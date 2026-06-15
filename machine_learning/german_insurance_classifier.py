@@ -4,6 +4,7 @@ import torch.nn as nn
 from transformers import AutoModel
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer
+from ml_config import NUMERIC_FIELDS
 
 class GermanInsuranceDataset(Dataset):
     def __init__(self, jsonl_path: str, 
@@ -49,7 +50,7 @@ class GermanInsuranceDataset(Dataset):
         # Dynamic multi-head labels extraction
         for field, val in labels.items():
             # Keep numeric columns as float values, classification values as long index IDs
-            if field in ["auto_year", "number_of_vehicles_involved", "witnesses"]:
+            if field in NUMERIC_FIELDS:
                 val = (val - self.numeric_stats[field]["mean"]) / self.numeric_stats[field]["std"]
                 item[f"label_{field}"] = torch.tensor(val, dtype=torch.float32)
             else:
@@ -118,7 +119,7 @@ class DynamicMultiHeadLoss(nn.Module):
             true_labels = batch[f"label_{field}"]      # Ground truth from JSONL
 
             # Numeric columns (Regression)
-            if field in ["auto_year", "number_of_vehicles_involved", "witnesses"]:
+            if field in NUMERIC_FIELDS:
                 # Create a binary filter mask (1.0 for valid numbers, 0.0 for -100)
                 mask = (true_labels != -100).float()
                 

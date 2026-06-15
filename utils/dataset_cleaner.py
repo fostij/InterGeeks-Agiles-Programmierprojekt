@@ -1,13 +1,7 @@
 import pandas as pd
 import numpy as np
 from pathlib import Path
-
-from utils.fake_data_generators.accident_description_generator import generate_accident_description
-
-
-INPUT_FILE = Path("data/raw/dataset.csv")
-OUTPUT_FILE = Path("data/output/dataset_prepared.csv")
-CLEANUP_LOG_FILE = Path("data/output/dataset_cleanup_report.txt")
+from ml_config import CLEANUP_LOG_FILE, TRASH_FIELDS
 
 def clean_dataset(dataframe: pd.DataFrame, log_path: Path = CLEANUP_LOG_FILE) -> pd.DataFrame:
     cleaned = dataframe.copy()
@@ -45,15 +39,7 @@ def clean_dataset(dataframe: pd.DataFrame, log_path: Path = CLEANUP_LOG_FILE) ->
             else:
                 cleaned[col] = cleaned[col].fillna("Unknown")
 
-    drop_cols = [
-        "policy_number",
-        "incident_location",
-        "injury_claim",
-        "total_claim_amount",
-        "property_claim",
-        "_c39"
-    ]
-
+    drop_cols = TRASH_FIELDS
     cleaned = cleaned.drop(columns=[c for c in drop_cols if c in cleaned.columns])
     return cleaned
 
