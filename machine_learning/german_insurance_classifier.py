@@ -1,4 +1,6 @@
 import json
+from attrs import field
+from numpy.random import sample
 import torch
 import torch.nn as nn
 from transformers import AutoModel
@@ -7,10 +9,11 @@ from transformers import AutoTokenizer
 from ml_config import NUMERIC_FIELDS
 
 class GermanInsuranceDataset(Dataset):
-    def __init__(self, jsonl_path: str, 
+    def __init__(self, jsonl_path: str,
+                 numeric_stats: dict,
                  tokenizer_name: str = "uklfr/gottbert-base", 
                  max_len: int = 256,
-                 numeric_stats: dict = None):
+                 ):
         self.samples = []
         with open(jsonl_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -43,16 +46,18 @@ class GermanInsuranceDataset(Dataset):
             "attention_mask": encoding["attention_mask"].squeeze(0),
             "target_price": torch.tensor(target_price, dtype=torch.float32)
         }
-        
-        mean_year = self.numeric_stats["auto_year"]["mean"] if self.numeric_stats else 0
-        std_year = self.numeric_stats["auto_year"]["std"] if self.numeric_stats else 0
 
         # Dynamic multi-head labels extraction
         for field, val in labels.items():
             # Keep numeric columns as float values, classification values as long index IDs
             if field in NUMERIC_FIELDS:
-                val = (val - self.numeric_stats[field]["mean"]) / self.numeric_stats[field]["std"]
-                item[f"label_{field}"] = torch.tensor(val, dtype=torch.float32)
+                if val == -100:
+                    item[f"label_{field}"] = torch.tensor(-100.0)
+                else:
+                    mean = self.numeric_stats[field]["mean"]
+                    std = self.numeric_stats[field]["std"]
+                    val = (val - mean) / std
+                    item[f"label_{field}"] = torch.tensor(val, dtype=torch.float32)
             else:
                 item[f"label_{field}"] = torch.tensor(val, dtype=torch.long)
 
@@ -113,7 +118,7 @@ class DynamicMultiHeadLoss(nn.Module):
 
     def forward(self, predictions, batch):
         total_loss = 0.0
-        
+        loss_dict = {}
         for field in self.target_fields:
             pred_logits = predictions[field]          # What the head predicted
             true_labels = batch[f"label_{field}"]      # Ground truth from JSONL
@@ -127,12 +132,18 @@ class DynamicMultiHeadLoss(nn.Module):
                 masked_loss = raw_loss * mask
                 
                 # Only add numeric loss if there is at least one valid example in the batch
-                if mask.sum() > 0:
-                    total_loss += masked_loss.sum() / mask.sum()
-                    
-            
-            # Categorical columns (Classification)
+                if mask.sum().item() > 0:
+                    loss_value = masked_loss.sum() / mask.sum()
+                else:
+                    loss_value = torch.tensor(0.0, device=pred_logits.device)
+
+                total_loss += loss_value
+                loss_dict[field] = loss_value.item()
+
             else:
-                total_loss += self.clf_criterion(pred_logits, true_labels)
+                loss_value = self.clf_criterion(pred_logits, true_labels)
+                total_loss += loss_value
+                loss_dict[field] = loss_value.item()
+            
                 
-        return total_loss
+        return total_loss, loss_dict
