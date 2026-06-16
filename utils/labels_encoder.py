@@ -43,7 +43,6 @@ def prepare_pipeline_and_save_jsonl(count: int, output_file: str) -> dict:
                     # Convert normal text to integer ID
                     encoded_labels[field] = int(label_encoders[field].transform([str(val)])[0])
                     
-            # Wrap data package
             json_line = {
                 "text": text,
                 "labels": encoded_labels,
