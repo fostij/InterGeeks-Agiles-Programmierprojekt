@@ -13,6 +13,25 @@ class ErrorAnalyzer:
             "input": input_text
         })
 
+    def report(self, top_n=5):
+        if not self.errors:
+            print("No errors recorded.")
+            return
+
+        from collections import defaultdict
+        by_field = defaultdict(list)
+        for e in self.errors:
+            by_field[e["field"]].append(e)
+
+        print("\n===== ERROR ANALYSIS =====")
+        for field, errs in by_field.items():
+            print(f"\n[{field}] — {len(errs)} misclassified")
+            for e in errs[:top_n]:
+                preds = e["pred"].tolist()
+                trues = e["true"].tolist()
+                for p, t in zip(preds, trues):
+                    print(f"  pred={p}  true={t}")
+
 class FieldEvaluator:
     def __init__(self, field_type):
         self.field_type = field_type
@@ -192,9 +211,12 @@ class MultiHeadEvaluator:
 
         return sum(scores) / max(len(scores), 1)
 
-def evaluate(model, dataloader, criterion, device, network_config, evaluator: MultiHeadEvaluator):
+def evaluate(model, dataloader, criterion, device, evaluator: MultiHeadEvaluator):
     model.eval()
     evaluator.reset()
+
+    all_predictions = {}
+    all_targets = {}
 
     with torch.no_grad():
         for batch in dataloader:
@@ -214,4 +236,20 @@ def evaluate(model, dataloader, criterion, device, network_config, evaluator: Mu
 
             evaluator.update(predictions, batch_targets, loss, bs)
 
-    return evaluator.compute()
+            for field, pred in predictions.items():
+                all_predictions.setdefault(field, []).append(pred.cpu())
+            for key, val in batch_targets.items():
+                all_targets.setdefault(key, []).append(val.cpu())
+
+    all_predictions = {f: torch.cat(v) for f, v in all_predictions.items()}
+    all_targets = {f: torch.cat(v) for f, v in all_targets.items()}
+
+    metrics = evaluator.compute()
+    avg_loss = evaluator.total_loss / max(evaluator.total_count, 1)
+    mae_dict = {f: v["mae"] for f, v in metrics.items()}
+    acc_dict = {f: v["acc"] for f, v in metrics.items()}
+
+    exact = evaluator.exact_match(all_predictions, all_targets)
+    partial = evaluator.partial_score(all_predictions, all_targets)
+
+    return avg_loss, loss_dict, mae_dict, acc_dict, exact, partial

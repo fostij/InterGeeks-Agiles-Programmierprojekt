@@ -6,8 +6,8 @@ def main() -> None:
         input_file=INPUT_FILE,
         network_config_path=NETWORK_CONFIG_PATH,
         output_checkpoint=OUTPUT_CHECKPOINT,
-        epochs=5,
-        dataset_count=5000,
+        epochs=1,
+        dataset_count=100,
     )
     run_training(cfg)
     return

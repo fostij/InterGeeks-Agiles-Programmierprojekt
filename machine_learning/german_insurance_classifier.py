@@ -4,11 +4,11 @@ import torch.nn as nn
 from transformers import AutoModel
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer
-from ml_config import NUMERIC_FIELDS
 
 class GermanInsuranceDataset(Dataset):
     def __init__(self, jsonl_path: str,
                  numeric_stats: dict,
+                 network_config,
                  tokenizer_name: str = "uklfr/gottbert-base", 
                  max_len: int = 256,
                  ):
@@ -21,6 +21,8 @@ class GermanInsuranceDataset(Dataset):
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
         self.max_len = max_len
         self.numeric_stats = numeric_stats
+        self.network_config = network_config
+        
     def __len__(self):
         return len(self.samples)
 
@@ -45,7 +47,7 @@ class GermanInsuranceDataset(Dataset):
         }
 
         for field, val in labels.items():
-            if field in NUMERIC_FIELDS:
+            if self.network_config[field]["type"] == "regression":
                 if val == -100:
                     item[f"label_{field}"] = torch.tensor(-100.0)
                 else:
@@ -69,13 +71,8 @@ class GermanInsuranceClassifier(nn.Module):
         self.heads = nn.ModuleDict()
         self.network_config = network_config
         
-        for field, out_dim in network_config.items():
-            if out_dim == 1:
-                # Regression heads (for auto_year, number_of_vehicles_involved, witnesses)
-                self.heads[field] = nn.Linear(hidden_size, 1)
-            else:
-                # Classification heads (for text fields like auto_make, weather, etc.)
-                self.heads[field] = nn.Linear(hidden_size, out_dim)
+        for field, cfg in network_config.items():
+            self.heads[field] = nn.Linear(hidden_size, cfg["size"])
 
     def forward(self, input_ids, attention_mask):
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
@@ -93,9 +90,10 @@ class GermanInsuranceClassifier(nn.Module):
         return outputs_dict
 
 class DynamicMultiHeadLoss(nn.Module):
-    def __init__(self, target_fields):
+    def __init__(self, target_fields, network_config):
         super(DynamicMultiHeadLoss, self).__init__()
         self.target_fields = target_fields
+        self.network_config = network_config
         
         self.clf_criterion = nn.CrossEntropyLoss()
         self.reg_criterion = nn.MSELoss(reduction='none')
@@ -106,8 +104,8 @@ class DynamicMultiHeadLoss(nn.Module):
         for field in self.target_fields:
             pred_logits = predictions[field]
             true_labels = batch[f"label_{field}"]
-
-            if field in NUMERIC_FIELDS:
+            cfg = self.network_config[field]
+            if cfg["type"] == "regression":
                 mask = (true_labels != -100).float()
                 
                 raw_loss = self.reg_criterion(pred_logits.squeeze(-1), true_labels)

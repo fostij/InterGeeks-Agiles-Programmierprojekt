@@ -1,11 +1,11 @@
 import json
 from sklearn.preprocessing import LabelEncoder
+import pandas as pd
 from utils.orchester_data import get_descriptions_and_labels, get_cleaned_dataset
 from ml_config import TARGET_FIELDS, NUMERIC_FIELDS
 
-def prepare_pipeline_and_save_jsonl(count: int, output_file: str) -> dict:
-    df_cleaned = get_cleaned_dataset()
-    raw_samples = get_descriptions_and_labels(count, df_cleaned)
+def prepare_pipeline_and_save_jsonl(count: int, output_file: str, dataset: pd.DataFrame) -> dict:
+    raw_samples = get_descriptions_and_labels(count, dataset)
     
     label_encoders = {}
     network_config = {}
@@ -13,18 +13,19 @@ def prepare_pipeline_and_save_jsonl(count: int, output_file: str) -> dict:
     for field in TARGET_FIELDS:
         if field in NUMERIC_FIELDS:
             network_config[field] = {
-                "type": "regression"
+                "type": "regression",
+                "size": 1
             }
         else:
-            unique_values = df_cleaned[field].fillna("None").astype(str).unique().tolist()
-                
+            unique_values = dataset[field].dropna().astype(str).unique().tolist()
+            unique_values = list(set(unique_values) | {"None"})
             le = LabelEncoder()
             le.fit(unique_values)
             
             label_encoders[field] = le
             network_config[field] = {
                 "type": "classification",
-                "num_classes": len(le.classes_)
+                "size": len(le.classes_)
             }
 
 
@@ -38,7 +39,7 @@ def prepare_pipeline_and_save_jsonl(count: int, output_file: str) -> dict:
                 if val is None:
                     # Map the python None object to the integer ID of the "None" class
                     encoded_labels[field] = int(label_encoders[field].transform(["None"])[0])
-                elif field in NUMERIC_FIELDS:
+                elif network_config[field]["type"] == "regression":
                     # Keep numbers as floats
                     encoded_labels[field] = float(val)
                 else:

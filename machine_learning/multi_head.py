@@ -9,6 +9,7 @@ from utils.discreptive_statistic import get_descriptive_statistics_for_numeric
 import pandas as pd
 import json
 from machine_learning.eval import MultiHeadEvaluator, evaluate
+from utils.orchester_data import get_cleaned_dataset
 
 @dataclass
 class TrainConfig:
@@ -29,11 +30,12 @@ class TrainConfig:
 
 def get_device():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #device = "cpu"
     print(f"Using processing engine: {device}")
     return device
 
-def build_save_set_network_config(cfg: TrainConfig):
-    network_config = prepare_pipeline_and_save_jsonl(cfg.dataset_count, cfg.dataset_path)
+def build_save_set_network_config(cfg: TrainConfig, dataset: pd.DataFrame):
+    network_config = prepare_pipeline_and_save_jsonl(cfg.dataset_count, cfg.dataset_path, dataset)
 
     with open(cfg.network_config_path, "w", encoding="utf-8") as f:
         json.dump(network_config, f, indent=4)
@@ -60,7 +62,7 @@ def build_model(cfg: TrainConfig, device):
     model = GermanInsuranceClassifier(model_name=cfg.model_name, network_config=cfg.network_config)
     model.to(device)
 
-    criterion = DynamicMultiHeadLoss(target_fields=list(cfg.network_config.keys()))
+    criterion = DynamicMultiHeadLoss(target_fields=list(cfg.network_config.keys()), network_config=cfg.network_config)
     optimizer = AdamW(model.parameters(), lr=cfg.lr)
 
     return model, criterion, optimizer
@@ -101,27 +103,17 @@ def train_epoch(train_loader, model, criterion, optimizer, device, epoch, cfg: T
     
     return running_loss / len(train_loader)
 
-def evaluate_epoch(val_loader, model, criterion, device, epoch, cfg: TrainConfig, evaluator: MultiHeadEvaluator):
-    avg_loss, loss_dict, mae_dict, acc_dict = evaluate(
+def evaluate_epoch(val_loader, model, criterion, device, epoch, evaluator: MultiHeadEvaluator):
+    avg_loss, loss_dict, mae_dict, acc_dict, exact, partial = evaluate(
         model=model,
         dataloader=val_loader,
         criterion=criterion,
         device=device,
-        network_config=cfg.network_config,
         evaluator=evaluator
     )
 
-    print(f"\n📊 Epoch {epoch+1} validation")
-
-    print(f"val_loss: {avg_loss:.4f}")
-
-    for field in cfg.network_config.keys():
-        if cfg.network_config[field] == 1:
-            print(f"{field}: MAE={mae_dict.get(field, 0.0):.4f}")
-        else:
-            print(f"{field}: ACC={acc_dict.get(field, 0.0):.4f}")
-
-    return avg_loss, loss_dict, mae_dict, acc_dict
+    print(f"\n📊 Epoch {epoch+1} | val_loss: {avg_loss:.4f} | exact_match: {exact:.4f} | partial_score: {partial:.4f}")
+    return avg_loss, loss_dict, mae_dict, acc_dict, exact, partial
 
 def save_checkpoint(cfg, model, optimizer, epoch, loss, num_stats):
     checkpoint = {
@@ -143,7 +135,7 @@ def build_report(network_config, loss_dict, mae_dict, acc_dict):
     for field in network_config.keys():
         row = {"field": field}
 
-        if network_config[field] == 1:
+        if network_config[field]["type"] == "regression":
             row["MAE"] = mae_dict.get(field, None)
             row["accuracy"] = None
         else:
@@ -161,11 +153,12 @@ def build_report(network_config, loss_dict, mae_dict, acc_dict):
 def run_training(cfg: TrainConfig):
     device = get_device()
 
-    _ = build_save_set_network_config(cfg)
+    dataset = get_cleaned_dataset()
+    _ = build_save_set_network_config(cfg, dataset)
     
-    num_stats = get_descriptive_statistics_for_numeric(pd.read_csv(cfg.input_file))
+    num_stats = get_descriptive_statistics_for_numeric(dataset)
 
-    dataset = GermanInsuranceDataset(jsonl_path=cfg.dataset_path, numeric_stats=num_stats)
+    dataset = GermanInsuranceDataset(jsonl_path=cfg.dataset_path, numeric_stats=num_stats, network_config=cfg.network_config)
     
     train_loader, val_loader = build_dataloaders(cfg, dataset)
 
@@ -178,9 +171,10 @@ def run_training(cfg: TrainConfig):
     for epoch in range(cfg.epochs):
         avg_loss = train_epoch(train_loader, model, criterion, optimizer, device, epoch, cfg)
 
-        avg_loss, loss_dict, mae_dict, acc_dict = evaluate_epoch(val_loader, model, criterion, device, epoch, cfg, evaluator)
+        avg_loss, loss_dict, mae_dict, acc_dict, exact, partial = evaluate_epoch(val_loader, model, criterion, device, epoch, evaluator)
         report = build_report(cfg.network_config, loss_dict, mae_dict, acc_dict)
         print(report)
+        evaluator.error_analyzer.report(top_n=5)
 
     save_checkpoint(cfg, model, optimizer, cfg.epochs-1, avg_loss, num_stats)
     print(f"\n✓ Training completed. Model checkpoint saved to: {cfg.output_checkpoint}")
