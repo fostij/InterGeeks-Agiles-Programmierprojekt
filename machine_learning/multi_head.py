@@ -8,7 +8,7 @@ from utils.labels_encoder import prepare_pipeline_and_save_jsonl
 from utils.discreptive_statistic import get_descriptive_statistics_for_numeric
 import pandas as pd
 import json
-from machine_learning.eval import evaluate
+from machine_learning.eval import MultiHeadEvaluator, evaluate
 
 @dataclass
 class TrainConfig:
@@ -101,13 +101,14 @@ def train_epoch(train_loader, model, criterion, optimizer, device, epoch, cfg: T
     
     return running_loss / len(train_loader)
 
-def evaluate_epoch(val_loader, model, criterion, device, epoch, cfg: TrainConfig):
+def evaluate_epoch(val_loader, model, criterion, device, epoch, cfg: TrainConfig, evaluator: MultiHeadEvaluator):
     avg_loss, loss_dict, mae_dict, acc_dict = evaluate(
         model=model,
         dataloader=val_loader,
         criterion=criterion,
         device=device,
-        target_fields=cfg.network_config
+        network_config=cfg.network_config,
+        evaluator=evaluator
     )
 
     print(f"\n📊 Epoch {epoch+1} validation")
@@ -171,11 +172,13 @@ def run_training(cfg: TrainConfig):
     model, criterion, optimizer = build_model(cfg, device)
 
     print("\nTraining started")
-
+    
+    evaluator = MultiHeadEvaluator(cfg.network_config)
+    
     for epoch in range(cfg.epochs):
         avg_loss = train_epoch(train_loader, model, criterion, optimizer, device, epoch, cfg)
 
-        avg_loss, loss_dict, mae_dict, acc_dict = evaluate_epoch(val_loader, model, criterion, device, epoch, cfg)
+        avg_loss, loss_dict, mae_dict, acc_dict = evaluate_epoch(val_loader, model, criterion, device, epoch, cfg, evaluator)
         report = build_report(cfg.network_config, loss_dict, mae_dict, acc_dict)
         print(report)
 

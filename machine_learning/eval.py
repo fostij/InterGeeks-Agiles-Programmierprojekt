@@ -1,10 +1,76 @@
 import torch
 
-def evaluate(model, dataloader, criterion, device, network_config):
-    model.eval()
+class MultiHeadEvaluator:
+    def __init__(self, network_config):
+        self.network_config = network_config
+        self.reset()
 
-    total_loss = 0.0
-    total_count = 0
+    def update_batch(self, predictions, batch_targets, loss, loss_dict, batch_size):
+        self.total_loss += loss.item() * batch_size
+        self.total_count += batch_size
+
+        # loss per head
+        for k, v in loss_dict.items():
+            self.loss_sum[k] = self.loss_sum.get(k, 0.0) + v * batch_size
+            self.loss_count[k] = self.loss_count.get(k, 0) + batch_size
+
+        # metrics per field
+        for field in self.network_config.keys():
+            pred = predictions[field]
+            true = batch_targets[f"label_{field}"]
+
+            if self.network_config[field] == 1:
+                mask = (true != -100)
+
+                if mask.any():
+                    pred_val = pred[..., 0] if pred.ndim > 1 else pred
+                    diff = (pred_val[mask] - true[mask]).abs()
+
+                    self.mae_sum[field] = self.mae_sum.get(field, 0.0) + diff.sum().item()
+                    self.mae_count[field] = self.mae_count.get(field, 0) + mask.sum().item()
+
+            else:
+                pred_class = pred.argmax(dim=-1)
+
+                self.acc_correct[field] = self.acc_correct.get(field, 0) + (pred_class == true).sum().item()
+                self.acc_total[field] = self.acc_total.get(field, 0) + true.numel()
+
+    def compute(self):
+        avg_loss = self.total_loss / max(self.total_count, 1)
+
+        loss_dict = {
+            k: self.loss_sum[k] / max(self.loss_count[k], 1)
+            for k in self.loss_sum
+        }
+
+        mae_dict = {
+            k: self.mae_sum[k] / max(self.mae_count[k], 1)
+            for k in self.mae_sum
+        }
+
+        acc_dict = {
+            k: self.acc_correct[k] / max(self.acc_total[k], 1)
+            for k in self.acc_correct
+        }
+
+        return avg_loss, loss_dict, mae_dict, acc_dict
+
+    def reset(self):
+        self.total_loss = 0.0
+        self.total_count = 0
+
+        self.loss_sum = {}
+        self.loss_count = {}
+
+        self.mae_sum = {}
+        self.mae_count = {}
+
+        self.acc_correct = {}
+        self.acc_total = {}
+
+def evaluate(model, dataloader, criterion, device, network_config, evaluator: MultiHeadEvaluator):
+    model.eval()
+    evaluator.reset()
 
     with torch.no_grad():
         for batch in dataloader:
@@ -22,78 +88,6 @@ def evaluate(model, dataloader, criterion, device, network_config):
 
             bs = input_ids.size(0)
 
-            total_loss += loss.item() * bs
-            total_count += bs
+            evaluator.update_batch(predictions, batch_targets, loss, loss_dict, bs)
 
-            loss_dict_total, loss_dict_count = _compute_loss_per_head(loss_dict, bs)
-
-            for field in network_config.keys():
-                mae_sum, mae_count, acc_correct, acc_total = _compute_metrics_per_field(
-                    predictions, batch_targets, network_config, field
-                )
-
-    avg_loss, loss_dict, mae_dict, acc_dict = _safe_averaging(
-        total_loss, total_count, loss_dict_total, loss_dict_count, mae_sum, mae_count, acc_correct, acc_total
-    )
-    
-    return avg_loss, loss_dict, mae_dict, acc_dict
-    
-def _compute_loss_per_head(loss_dict, bs):
-    loss_dict_total = {}
-    loss_dict_count = {}
-    for k, v in loss_dict.items():
-        loss_dict_total[k] = loss_dict_total.get(k, 0.0) + v * bs
-        loss_dict_count[k] = loss_dict_count.get(k, 0) + bs
-    return loss_dict_total, loss_dict_count
-
-def _compute_metrics_per_field(predictions, batch_targets, network_config, field):
-    mae_sum = {}
-    mae_count = {}
-
-    acc_correct = {}
-    acc_total = {}
-    
-    pred = predictions[field]
-    true = batch_targets[f"label_{field}"]
-
-    if network_config[field] == 1:
-        mask = (true != -100)
-
-        if mask.any():
-            pred_val = pred[..., 0] if pred.ndim > 1 else pred
-
-            diff = (pred_val[mask] - true[mask]).abs()
-
-            mae_sum[field] = mae_sum.get(field, 0.0) + diff.sum().item()
-            mae_count[field] = mae_count.get(field, 0) + mask.sum().item()
-
-    else:
-        pred_class = pred.argmax(dim=-1)
-
-        correct = (pred_class == true).sum().item()
-        total = true.numel()
-
-        acc_correct[field] = acc_correct.get(field, 0) + correct
-        acc_total[field] = acc_total.get(field, 0) + total
-
-    return mae_sum, mae_count, acc_correct, acc_total
-
-def _safe_averaging(total_loss, total_count, loss_dict_total, loss_dict_count, mae_sum, mae_count, acc_correct, acc_total):
-    avg_loss = total_loss / max(total_count, 1)
-
-    loss_dict = {
-        k: loss_dict_total[k] / max(loss_dict_count[k], 1)
-        for k in loss_dict_total
-    }
-
-    mae_dict = {
-        k: mae_sum[k] / max(mae_count[k], 1)
-        for k in mae_sum
-    }
-
-    acc_dict = {
-        k: acc_correct[k] / max(acc_total[k], 1)
-        for k in acc_correct
-    }
-
-    return avg_loss, loss_dict, mae_dict, acc_dict
+    return evaluator.compute()
