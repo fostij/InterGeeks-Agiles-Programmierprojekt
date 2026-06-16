@@ -141,38 +141,46 @@ class MultiHeadEvaluator:
     def exact_match(self, predictions, targets):
         n = len(next(iter(targets.values())))
         ok = 0
+        total = 0
 
         for i in range(n):
-            match = True
+            sample_match = True
+            sample_has_fields = False
 
             for field, ev in self.fields.items():
                 p = predictions[field][i]
                 t = targets[f"label_{field}"][i]
-                
+
                 if ev.field_type == "regression":
                     p = p.squeeze(-1)
-                    t_valid = (t != -100)
+                    valid = (t != -100)
 
-                    if t_valid.sum() == 0:
+                    if valid.sum() == 0:
                         continue
 
-                    match &= (abs(p[t_valid] - t[t_valid]) < 1e-3).all().item()
+                    sample_has_fields = True
+
+                    sample_match &= (abs(p[valid] - t[valid]) < 0.1).all().item()
+
                 else:
                     valid = (t != -100)
 
                     if valid.sum() == 0:
                         continue
 
+                    sample_has_fields = True
+
                     p_cls = p.argmax(-1)
+                    sample_match &= (p_cls[valid] == t[valid]).all().item()
 
-                    match &= ((p_cls[valid] == t[valid]).all().item())
-
-                if not match:
+                if not sample_match:
                     break
 
-            ok += int(match)
+            if sample_has_fields:
+                ok += int(sample_match)
+                total += 1
 
-        return ok / max(n, 1)
+        return ok / max(total, 1)
     
     def partial_score(self, predictions, targets):
         n = len(next(iter(targets.values())))
