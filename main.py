@@ -1,4 +1,4 @@
-from machine_learning.multi_head import TrainConfig, run_training
+from src.models.multi_head_insurance.train import TrainConfig, run_training
 from ml_config import BEST_CHECKPOINT, DATASET_PATH, NETWORK_CONFIG_PATH, INPUT_FILE, OUTPUT_CHECKPOINT
 def main() -> None:
     cfg = TrainConfig(

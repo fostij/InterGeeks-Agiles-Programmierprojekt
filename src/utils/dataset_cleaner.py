@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from ml_config import CLEANUP_LOG_FILE, TRASH_FIELDS
+from src.ml_config import CLEANUP_LOG_FILE, TRASH_FIELDS
 
 def clean_dataset(dataframe: pd.DataFrame, log_path: Path = CLEANUP_LOG_FILE) -> pd.DataFrame:
     cleaned = dataframe.copy()

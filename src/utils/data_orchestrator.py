@@ -1,9 +1,8 @@
-import csv
 from typing import Dict, List, Any
 import pandas as pd
-from utils.dataset_cleaner import clean_dataset, fix_name_errors
-from utils.fake_data_generators.accident_description_generator import AccidentDataGenerator
-from ml_config import INPUT_FILE, TARGET_FIELDS
+from src.utils.dataset_cleaner import clean_dataset, fix_name_errors
+from src.utils.fake_data_generators.accident_description_generator import AccidentDataGenerator
+from src.ml_config import INPUT_FILE, TARGET_FIELDS
 
 def get_cleaned_dataset() -> pd.DataFrame:
     dataframe = pd.read_csv(INPUT_FILE, na_values=["?", ""])

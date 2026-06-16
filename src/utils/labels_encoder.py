@@ -1,8 +1,8 @@
 import json
 from sklearn.preprocessing import LabelEncoder
 import pandas as pd
-from utils.orchester_data import get_descriptions_and_labels, get_cleaned_dataset
-from ml_config import TARGET_FIELDS, NUMERIC_FIELDS
+from src.utils.data_orchestrator import get_descriptions_and_labels, get_cleaned_dataset
+from src.ml_config import TARGET_FIELDS, NUMERIC_FIELDS
 
 def prepare_pipeline_and_save_jsonl(count: int, output_file: str, dataset: pd.DataFrame) -> dict:
     raw_samples = get_descriptions_and_labels(count, dataset)

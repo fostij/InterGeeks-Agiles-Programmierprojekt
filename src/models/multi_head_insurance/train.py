@@ -1,15 +1,17 @@
+import pandas as pd
+import json
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 from torch.optim import AdamW
 from dataclasses import dataclass
-from machine_learning.german_insurance_classifier import GermanInsuranceDataset, GermanInsuranceClassifier, DynamicMultiHeadLoss
-from utils.labels_encoder import prepare_pipeline_and_save_jsonl
-from utils.discreptive_statistic import get_descriptive_statistics_for_numeric
-import pandas as pd
-import json
-from machine_learning.eval import MultiHeadEvaluator, evaluate
-from utils.orchester_data import get_cleaned_dataset
+from src.models.multi_head_insurance.losses import DynamicMultiHeadLoss
+from src.models.multi_head_insurance.models import GermanInsuranceClassifier
+from src.models.multi_head_insurance.dataset import GermanInsuranceDataset
+from src.utils.labels_encoder import prepare_pipeline_and_save_jsonl
+from src.utils.descriptive_statistics import get_descriptive_statistics_for_numeric
+from src.models.multi_head_insurance.engine import MultiHeadEvaluator, evaluate
+from src.utils.data_orchestrator import get_cleaned_dataset
 
 @dataclass
 class TrainConfig:

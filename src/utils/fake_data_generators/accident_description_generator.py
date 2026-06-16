@@ -1,8 +1,8 @@
 import random
 import pandas as pd
 from dataclasses import dataclass
-from ml_config import VALID_CASE_TYPES
-from utils.fake_data_generators.accident_text_constants import (
+from src.ml_config import VALID_CASE_TYPES
+from src.utils.fake_data_generators.accident_text_constants import (
     CASE_CONFIG,
     DAMAGE_INTRO_TEMPLATES,
     DETAIL_LEVELS,
