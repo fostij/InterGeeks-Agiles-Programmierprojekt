@@ -282,16 +282,18 @@ To start training, you need to create a `TrainConfig` instance with the required
 Example:
 
 ```python
-cfg = TrainConfig(
-    dataset_path=DATASET_PATH,
-    input_file=INPUT_FILE,
-    network_config_path=NETWORK_CONFIG_PATH,
-    output_checkpoint=OUTPUT_CHECKPOINT,
-    best_checkpoint=BEST_CHECKPOINT,
-    epochs=3,
-    dataset_count=1000,
-)
+from src.models.multi_head_insurance.train import TrainConfig, run_training
+from ml_config import BEST_CHECKPOINT, DATASET_PATH, NETWORK_CONFIG_PATH, INPUT_FILE, OUTPUT_CHECKPOINT
 
+cfg = TrainConfig(
+   dataset_path=DATASET_PATH,
+   input_file=INPUT_FILE,
+   network_config_path=NETWORK_CONFIG_PATH,
+   output_checkpoint=OUTPUT_CHECKPOINT,
+   best_checkpoint=BEST_CHECKPOINT,
+   epochs=3,
+   dataset_count=1000,
+)
 run_training(cfg)
 ```
 
