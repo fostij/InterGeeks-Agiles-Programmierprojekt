@@ -1,72 +1,79 @@
 import torch
 
-class MultiHeadEvaluator:
-    def __init__(self, network_config):
-        self.network_config = network_config
+class FieldEvaluator:
+    def __init__(self, field_type):
+        self.field_type = field_type
         self.reset()
 
-    def update_batch(self, predictions, batch_targets, loss, loss_dict, batch_size):
-        self.total_loss += loss.item() * batch_size
-        self.total_count += batch_size
+    def reset(self):
+        self.correct = 0
+        self.total = 0
 
-        # loss per head
-        for k, v in loss_dict.items():
-            self.loss_sum[k] = self.loss_sum.get(k, 0.0) + v * batch_size
-            self.loss_count[k] = self.loss_count.get(k, 0) + batch_size
+        self.mae_sum = 0
+        self.mae_count = 0
 
-        # metrics per field
-        for field in self.network_config.keys():
-            pred = predictions[field]
-            true = batch_targets[f"label_{field}"]
+        from collections import deque
+        self.pred_cache = deque(maxlen=1000)
+        self.true_cache = deque(maxlen=1000)
 
-            if self.network_config[field] == 1:
-                mask = (true != -100)
+    def update(self, pred, true, mask=None):
+        if self.field_type == "regression":
+            pred_val = pred.squeeze(-1)
+            diff = (pred_val - true).abs()
 
-                if mask.any():
-                    pred_val = pred[..., 0] if pred.ndim > 1 else pred
-                    diff = (pred_val[mask] - true[mask]).abs()
+            if mask is not None:
+                diff = diff[mask]
 
-                    self.mae_sum[field] = self.mae_sum.get(field, 0.0) + diff.sum().item()
-                    self.mae_count[field] = self.mae_count.get(field, 0) + mask.sum().item()
+            self.mae_sum += diff.sum().item()
+            self.mae_count += diff.numel()
 
-            else:
-                pred_class = pred.argmax(dim=-1)
+        else:
+            pred_cls = pred.argmax(-1)
 
-                self.acc_correct[field] = self.acc_correct.get(field, 0) + (pred_class == true).sum().item()
-                self.acc_total[field] = self.acc_total.get(field, 0) + true.numel()
+            if mask is not None:
+                pred_cls = pred_cls[mask]
+                true = true[mask]
+
+            self.correct += (pred_cls == true).sum().item()
+            self.total += true.numel()
+
+        wrong = pred_cls != true
+        if wrong.any():
+                self.pred_cache.append(pred_cls[wrong].detach().cpu())
+                self.true_cache.append(true[wrong].detach().cpu())
 
     def compute(self):
-        avg_loss = self.total_loss / max(self.total_count, 1)
-
-        loss_dict = {
-            k: self.loss_sum[k] / max(self.loss_count[k], 1)
-            for k in self.loss_sum
+        return {
+            "loss": self.loss_sum / max(self.loss_count, 1),
+            "acc": self.correct / max(self.total, 1),
+            "mae": self.mae_sum / max(self.mae_count, 1),
         }
 
-        mae_dict = {
-            k: self.mae_sum[k] / max(self.mae_count[k], 1)
-            for k in self.mae_sum
+class MultiHeadEvaluator:
+    def __init__(self, network_config):
+        self.fields = {
+            k: FieldEvaluator("regression" if v == 1 else "classification")
+            for k, v in network_config.items()
         }
 
-        acc_dict = {
-            k: self.acc_correct[k] / max(self.acc_total[k], 1)
-            for k in self.acc_correct
+    def update(self, predictions, targets):
+        for field, evaluator in self.fields.items():
+            pred = predictions[field]
+            true = targets[f"label_{field}"]
+
+            mask = (true != -100) if evaluator.field_type == "regression" else None
+
+            evaluator.update(
+                pred=pred,
+                true=true,
+                mask=mask
+            )
+
+    def compute(self):
+        return {
+            field: ev.compute()
+            for field, ev in self.fields.items()
         }
-
-        return avg_loss, loss_dict, mae_dict, acc_dict
-
-    def reset(self):
-        self.total_loss = 0.0
-        self.total_count = 0
-
-        self.loss_sum = {}
-        self.loss_count = {}
-
-        self.mae_sum = {}
-        self.mae_count = {}
-
-        self.acc_correct = {}
-        self.acc_total = {}
 
 def evaluate(model, dataloader, criterion, device, network_config, evaluator: MultiHeadEvaluator):
     model.eval()
@@ -88,6 +95,6 @@ def evaluate(model, dataloader, criterion, device, network_config, evaluator: Mu
 
             bs = input_ids.size(0)
 
-            evaluator.update_batch(predictions, batch_targets, loss, loss_dict, bs)
+            evaluator.update(predictions, batch_targets, loss, loss_dict, bs)
 
     return evaluator.compute()
