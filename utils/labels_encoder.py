@@ -4,16 +4,12 @@ from utils.orchester_data import get_descriptions_and_labels, get_cleaned_datase
 from ml_config import TARGET_FIELDS, NUMERIC_FIELDS
 
 def prepare_pipeline_and_save_jsonl(count: int, output_file: str) -> dict:
-    # Step 1: Use your list loop generator to fetch raw samples
-    # (Temporarily returns string names and None values)
     df_cleaned = get_cleaned_dataset()
     raw_samples = get_descriptions_and_labels(count, df_cleaned)
     
-    # Extract unique values to train our LabelEncoders
     label_encoders = {}
     num_classes_dict = {}
     
-    # Step 2: Initialize Encoders
     for field in TARGET_FIELDS:
         if field in NUMERIC_FIELDS:
             num_classes_dict[field] = 1  # 1 node for regression
@@ -29,7 +25,7 @@ def prepare_pipeline_and_save_jsonl(count: int, output_file: str) -> dict:
             label_encoders[field] = le
             num_classes_dict[field] = len(le.classes_)
 
-    # Step 3: Transform and Write to File
+
     with open(output_file, "w", encoding="utf-8") as f:
         for sample in raw_samples:
             text = sample["text"]
