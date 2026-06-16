@@ -68,22 +68,17 @@ def build_model(cfg: TrainConfig, device):
 def train_step(batch, model, criterion, optimizer, device, max_grad_norm, network_config):
     optimizer.zero_grad()
             
-    # Route core linguistic components to device
     input_ids = batch["input_ids"].to(device)
     attention_mask = batch["attention_mask"].to(device)
             
-    # Group text extractors targets cleanly
     batch_targets = {}
     for field in network_config.keys():
         batch_targets[f"label_{field}"] = batch[f"label_{field}"].to(device)
                 
-    # 1. Direct Forward Pass (Compute text predictions across all 12 heads)
     predictions = model(input_ids, attention_mask)
             
-    # 2. Extract Combined Structural Loss Matrix
     loss, loss_dict = criterion(predictions, batch_targets)
             
-    # 3. Backpropagation Pass
     loss.backward()
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm) # Gradient clipping stabilizer
     optimizer.step()
@@ -103,7 +98,6 @@ def train_epoch(train_loader, model, criterion, optimizer, device, epoch, cfg: T
         # if batch_idx in [0,5,10]:
         #    for field, field_loss in loss_dict.items():
         #        print(f"    {field}: {field_loss:.4f}")
-        # Monitoring checkpoints
     
     return running_loss / len(train_loader)
 

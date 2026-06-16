@@ -6,15 +6,6 @@ def evaluate(model, dataloader, criterion, device, network_config):
     total_loss = 0.0
     total_count = 0
 
-    loss_dict_total = {}
-    loss_dict_count = {}
-
-    mae_sum = {}
-    mae_count = {}
-
-    acc_correct = {}
-    acc_total = {}
-
     with torch.no_grad():
         for batch in dataloader:
             input_ids = batch["input_ids"].to(device)
@@ -34,39 +25,60 @@ def evaluate(model, dataloader, criterion, device, network_config):
             total_loss += loss.item() * bs
             total_count += bs
 
-            # ---- loss per head ----
-            for k, v in loss_dict.items():
-                loss_dict_total[k] = loss_dict_total.get(k, 0.0) + v * bs
-                loss_dict_count[k] = loss_dict_count.get(k, 0) + bs
+            loss_dict_total, loss_dict_count = _compute_loss_per_head(loss_dict, bs)
 
-            # ---- metrics per field ----
             for field in network_config.keys():
-                pred = predictions[field]
-                true = batch_targets[f"label_{field}"]
+                mae_sum, mae_count, acc_correct, acc_total = _compute_metrics_per_field(
+                    predictions, batch_targets, network_config, field
+                )
 
-                # ================= REGRESSION =================
-                if network_config[field] == 1:
-                    mask = (true != -100)
+    avg_loss, loss_dict, mae_dict, acc_dict = _safe_averaging(
+        total_loss, total_count, loss_dict_total, loss_dict_count, mae_sum, mae_count, acc_correct, acc_total
+    )
+    
+    return avg_loss, loss_dict, mae_dict, acc_dict
+    
+def _compute_loss_per_head(loss_dict, bs):
+    loss_dict_total = {}
+    loss_dict_count = {}
+    for k, v in loss_dict.items():
+        loss_dict_total[k] = loss_dict_total.get(k, 0.0) + v * bs
+        loss_dict_count[k] = loss_dict_count.get(k, 0) + bs
+    return loss_dict_total, loss_dict_count
 
-                    if mask.any():
-                        pred_val = pred[..., 0] if pred.ndim > 1 else pred
+def _compute_metrics_per_field(predictions, batch_targets, network_config, field):
+    mae_sum = {}
+    mae_count = {}
 
-                        diff = (pred_val[mask] - true[mask]).abs()
+    acc_correct = {}
+    acc_total = {}
+    
+    pred = predictions[field]
+    true = batch_targets[f"label_{field}"]
 
-                        mae_sum[field] = mae_sum.get(field, 0.0) + diff.sum().item()
-                        mae_count[field] = mae_count.get(field, 0) + mask.sum().item()
+    if network_config[field] == 1:
+        mask = (true != -100)
 
-                # ================= CLASSIFICATION =================
-                else:
-                    pred_class = pred.argmax(dim=-1)
+        if mask.any():
+            pred_val = pred[..., 0] if pred.ndim > 1 else pred
 
-                    correct = (pred_class == true).sum().item()
-                    total = true.numel()
+            diff = (pred_val[mask] - true[mask]).abs()
 
-                    acc_correct[field] = acc_correct.get(field, 0) + correct
-                    acc_total[field] = acc_total.get(field, 0) + total
+            mae_sum[field] = mae_sum.get(field, 0.0) + diff.sum().item()
+            mae_count[field] = mae_count.get(field, 0) + mask.sum().item()
 
-    # ---- safe averaging ----
+    else:
+        pred_class = pred.argmax(dim=-1)
+
+        correct = (pred_class == true).sum().item()
+        total = true.numel()
+
+        acc_correct[field] = acc_correct.get(field, 0) + correct
+        acc_total[field] = acc_total.get(field, 0) + total
+
+    return mae_sum, mae_count, acc_correct, acc_total
+
+def _safe_averaging(total_loss, total_count, loss_dict_total, loss_dict_count, mae_sum, mae_count, acc_correct, acc_total):
     avg_loss = total_loss / max(total_count, 1)
 
     loss_dict = {
