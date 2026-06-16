@@ -67,7 +67,7 @@ class FieldEvaluator:
 class MultiHeadEvaluator:
     def __init__(self, network_config):
         self.fields = {
-            k: FieldEvaluator("regression" if v == 1 else "classification")
+            k: FieldEvaluator(v["type"])
             for k, v in network_config.items()
         }
         self.error_analyzer = ErrorAnalyzer()

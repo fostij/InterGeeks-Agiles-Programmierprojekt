@@ -33,17 +33,17 @@ def get_device():
     return device
 
 def build_save_set_network_config(cfg: TrainConfig):
-    num_classes_dict = prepare_pipeline_and_save_jsonl(cfg.dataset_count, cfg.dataset_path)
+    network_config = prepare_pipeline_and_save_jsonl(cfg.dataset_count, cfg.dataset_path)
 
     with open(cfg.network_config_path, "w", encoding="utf-8") as f:
-        json.dump(num_classes_dict, f, indent=4)
+        json.dump(network_config, f, indent=4)
 
     with open(cfg.network_config_path, "r", encoding="utf-8") as f:
         final_network_config = json.load(f)
 
     cfg.network_config = final_network_config
     print("✓ The head size configuration has been successfully saved to disk.")
-    return final_network_config, num_classes_dict
+    return final_network_config
 
 def build_dataloaders(cfg: TrainConfig, dataset):
     train_size = int(cfg.train_split * len(dataset))
@@ -161,7 +161,7 @@ def build_report(network_config, loss_dict, mae_dict, acc_dict):
 def run_training(cfg: TrainConfig):
     device = get_device()
 
-    final_network_config, num_classes_dict = build_save_set_network_config(cfg)
+    _ = build_save_set_network_config(cfg)
     
     num_stats = get_descriptive_statistics_for_numeric(pd.read_csv(cfg.input_file))
 

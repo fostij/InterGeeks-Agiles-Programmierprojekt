@@ -8,22 +8,24 @@ def prepare_pipeline_and_save_jsonl(count: int, output_file: str) -> dict:
     raw_samples = get_descriptions_and_labels(count, df_cleaned)
     
     label_encoders = {}
-    num_classes_dict = {}
+    network_config = {}
     
     for field in TARGET_FIELDS:
         if field in NUMERIC_FIELDS:
-            num_classes_dict[field] = 1  # 1 node for regression
+            network_config[field] = {
+                "type": "regression"
+            }
         else:
-            # Force the column to string and ensure 'None' text is a known category
             unique_values = df_cleaned[field].fillna("None").astype(str).unique().tolist()
-            if "None" not in unique_values:
-                unique_values.append("None")
                 
             le = LabelEncoder()
             le.fit(unique_values)
             
             label_encoders[field] = le
-            num_classes_dict[field] = len(le.classes_)
+            network_config[field] = {
+                "type": "classification",
+                "num_classes": len(le.classes_)
+            }
 
 
     with open(output_file, "w", encoding="utf-8") as f:
@@ -51,4 +53,4 @@ def prepare_pipeline_and_save_jsonl(count: int, output_file: str) -> dict:
             f.write(json.dumps(json_line, ensure_ascii=False) + "\n")
             
     print(f"✓ Dataset saved successfully to: {output_file}")
-    return num_classes_dict
+    return network_config
