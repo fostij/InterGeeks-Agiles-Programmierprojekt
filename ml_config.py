@@ -5,7 +5,8 @@ OUTPUT_FILE = Path("data/output/dataset_prepared.csv")
 CLEANUP_LOG_FILE = Path("data/output/dataset_cleanup_report.txt")
 DATASET_PATH = Path("data/output/output.jsonl")
 NETWORK_CONFIG_PATH = Path("network_config.json")
-OUTPUT_CHECKPOINT = Path("data/output/model.pt")
+OUTPUT_CHECKPOINT = Path("data/output/last_checkpoint.pt")
+BEST_CHECKPOINT = Path("data/output/best_checkpoint.pt")
 
 VALID_CASE_TYPES = {
     "Front Collision",

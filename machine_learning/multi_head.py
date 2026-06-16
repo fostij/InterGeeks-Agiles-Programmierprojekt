@@ -25,8 +25,38 @@ class TrainConfig:
     input_file: str = None
     network_config_path: str = None
     output_checkpoint: str = None
+    best_checkpoint: str = None
 
     network_config: dict = None
+    
+@dataclass
+class BestModelTracker:
+    output_checkpoint: str
+    metric: str = "partial_score"  # "partial_score" | "exact_match" | "val_loss"
+    mode: str = "max"              # "max" for accuracy, "min" for loss
+
+    best_value: float = None
+    best_epoch: int = -1
+
+    def is_better(self, value: float) -> bool:
+        if self.best_value is None:
+            return True
+        if self.mode == "max":
+            return value > self.best_value
+        return value < self.best_value
+
+    def update(self, value: float, epoch: int, model, optimizer, cfg, num_stats) -> bool:
+        if self.is_better(value):
+            self.best_value = value
+            self.best_epoch = epoch
+            save_checkpoint(cfg, model, optimizer, epoch, value, num_stats)
+            print(f"  ✓ New best {self.metric}={value:.4f} — checkpoint saved")
+            return True
+        return False
+
+    def summary(self):
+        print(f"\n Best {self.metric}={self.best_value:.4f} at epoch {self.best_epoch + 1}")
+
 
 def get_device():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -167,17 +197,54 @@ def run_training(cfg: TrainConfig):
     print("\nTraining started")
     
     evaluator = MultiHeadEvaluator(cfg.network_config)
+
+    tracker = BestModelTracker(
+        output_checkpoint=cfg.best_checkpoint,
+        metric="partial_score",
+        mode="max"
+    )
+
+    history = []
     
     for epoch in range(cfg.epochs):
         avg_loss = train_epoch(train_loader, model, criterion, optimizer, device, epoch, cfg)
 
-        avg_loss, loss_dict, mae_dict, acc_dict, exact, partial = evaluate_epoch(val_loader, model, criterion, device, epoch, evaluator)
+        val_loss, loss_dict, mae_dict, acc_dict, exact, partial = evaluate_epoch(val_loader, model, criterion, device, epoch, evaluator)
+
+        row = {
+            "epoch": epoch + 1,
+            "train_loss": avg_loss,
+            "val_loss": val_loss,
+            "exact": exact,
+            "partial": partial,
+        }
+
+        for field, value in loss_dict.items():
+            row[f"{field}_loss"] = value
+
+        for field, value in mae_dict.items():
+            row[f"{field}_mae"] = value
+
+        for field, value in acc_dict.items():
+            row[f"{field}_acc"] = value
+
+        history.append(row)
+
         report = build_report(cfg.network_config, loss_dict, mae_dict, acc_dict)
         print(report)
-        evaluator.error_analyzer.report(top_n=5)
+        evaluator.error_analyzer.report(top_n=3)
 
-    save_checkpoint(cfg, model, optimizer, cfg.epochs-1, avg_loss, num_stats)
-    print(f"\n✓ Training completed. Model checkpoint saved to: {cfg.output_checkpoint}")
-    
+        tracker.update(
+            value=partial,
+            epoch=epoch,
+            model=model,
+            optimizer=optimizer,
+            cfg=cfg,
+            num_stats=num_stats
+        )
+
+    tracker.summary()
+    print(f"\n✓ Training completed. Best checkpoint saved to: {cfg.best_checkpoint}")
+    pd.DataFrame(history).to_csv("training_history.csv", index=False)
     
     
