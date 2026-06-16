@@ -12,7 +12,10 @@ build/
 *.whl
 
 # Data files
-data/raw/  
+data/raw/ 
+data/raw/car_damage/
+src/cnn/model.keras
+src/cnn/klassen.json
 
 # Virtual environments
 .venv/
