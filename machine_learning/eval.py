@@ -1,4 +1,5 @@
 import torch
+from collections import deque
 
 class ErrorAnalyzer:
     def __init__(self):
@@ -23,8 +24,7 @@ class FieldEvaluator:
 
         self.mae_sum = 0
         self.mae_count = 0
-
-        from collections import deque
+        
         self.pred_cache = deque(maxlen=1000)
         self.true_cache = deque(maxlen=1000)
 
@@ -34,12 +34,16 @@ class FieldEvaluator:
             diff = (pred_val - true).abs()
 
             if mask is not None:
+                if mask.sum() == 0:
+                    return
                 diff = diff[mask]
 
             self.mae_sum += diff.sum().item()
             self.mae_count += diff.numel()
 
         else:
+            if mask is not None and mask.sum() == 0:
+                return
             pred_cls = pred.argmax(-1)
 
             if mask is not None:
@@ -78,18 +82,18 @@ class MultiHeadEvaluator:
             pred = predictions[field]
             true = targets[f"label_{field}"]
 
-            mask = (true != -100) if evaluator.field_type == "regression" else None
+            mask = (true != -100)
+
+            if mask.sum() == 0:
+                continue
 
             evaluator.update(pred, true, mask)
 
             if evaluator.field_type == "classification":
                 pred_cls = pred.argmax(-1)
 
-                if mask is not None:
-                    pred_cls = pred_cls[mask]
-                    true_masked = true[mask]
-                else:
-                    true_masked = true
+                pred_cls = pred_cls[mask]
+                true_masked = true[mask]
 
                 wrong = pred_cls != true_masked
 
@@ -125,12 +129,24 @@ class MultiHeadEvaluator:
             for field, ev in self.fields.items():
                 p = predictions[field][i]
                 t = targets[f"label_{field}"][i]
-
+                
                 if ev.field_type == "regression":
                     p = p.squeeze(-1)
-                    match &= (abs(p - t) < 1e-3).all().item()
+                    t_valid = (t != -100)
+
+                    if t_valid.sum() == 0:
+                        continue
+
+                    match &= (abs(p[t_valid] - t[t_valid]) < 1e-3).all().item()
                 else:
-                    match &= ((p.argmax(-1) == t).all().item())
+                    valid = (t != -100)
+
+                    if valid.sum() == 0:
+                        continue
+
+                    p_cls = p.argmax(-1)
+
+                    match &= ((p_cls[valid] == t[valid]).all().item())
 
                 if not match:
                     break
@@ -144,8 +160,8 @@ class MultiHeadEvaluator:
         scores = []
 
         for i in range(n):
+            total = 0
             correct = 0
-            total = len(self.fields)
 
             for field, ev in self.fields.items():
                 p = predictions[field][i]
@@ -153,11 +169,26 @@ class MultiHeadEvaluator:
 
                 if ev.field_type == "regression":
                     p = p.squeeze(-1)
-                    correct += int((abs(p - t) < 1e-3).all().item())
-                else:
-                    correct += int((p.argmax(-1) == t).all().item())
 
-            scores.append(correct / total)
+                    t_valid = (t != -100)
+
+                    if t_valid.sum() == 0:
+                        continue
+                    
+                    correct += int((abs(p[t_valid] - t[t_valid]) < 1e-3).all().item())
+                    total += 1
+                else:
+                    valid = (t != -100)
+
+                    if valid.sum() == 0:
+                        continue
+
+                    p_cls = p.argmax(-1)
+                    
+                    correct += int((p_cls[valid] == t[valid]).all().item())
+                    total += 1
+
+            scores.append(correct / max(total, 1))
 
         return sum(scores) / max(len(scores), 1)
 
