@@ -84,12 +84,13 @@ class FieldEvaluator:
         }
 
 class MultiHeadEvaluator:
-    def __init__(self, network_config):
+    def __init__(self, network_config, numeric_stats=None):
         self.fields = {
             k: FieldEvaluator(v["type"])
             for k, v in network_config.items()
         }
         self.error_analyzer = ErrorAnalyzer()
+        self.numeric_stats = numeric_stats or {}
         self.total_loss = 0.0
         self.total_count = 0
 
@@ -138,7 +139,26 @@ class MultiHeadEvaluator:
         for ev in self.fields.values():
             ev.reset()
 
-    def exact_match(self, predictions, targets):
+    def compute_denorm_mae(self, predictions, targets):
+        result = {}
+        for field, ev in self.fields.items():
+            if ev.field_type != "regression":
+                continue
+            pred = predictions[field].squeeze(-1)
+            true = targets[f"label_{field}"]
+            mask = (true != -100)
+            if mask.sum() == 0:
+                continue
+            
+            stats = self.numeric_stats.get(field, {})
+            mean, std = stats.get("mean", 0), stats.get("std", 1)
+            
+            pred_denorm = pred[mask] * std + mean
+            true_denorm = true[mask] * std + mean
+            result[field] = (pred_denorm - true_denorm).abs().mean().item()
+        return result
+
+    def exact_match(self, predictions, targets, reg_rel_threshold=0.10):
         n = len(next(iter(targets.values())))
         ok = 0
         total = 0
@@ -152,7 +172,6 @@ class MultiHeadEvaluator:
                 t = targets[f"label_{field}"][i]
 
                 if ev.field_type == "regression":
-                    p = p.squeeze(-1)
                     valid = (t != -100)
 
                     if valid.sum() == 0:
@@ -160,7 +179,14 @@ class MultiHeadEvaluator:
 
                     sample_has_fields = True
 
-                    sample_match &= (abs(p[valid] - t[valid]) < 0.1).all().item()
+                    stats = self.numeric_stats.get(field, {})
+                    mean, std = stats.get("mean", 0.0), stats.get("std", 1.0)
+
+                    p_v = p.squeeze(-1)[valid] * std + mean
+                    t_v = t[valid] * std + mean
+                    
+                    rel_err = (p_v - t_v).abs() / t_v.abs().clamp(min=1e-6)
+                    sample_match &= (rel_err < reg_rel_threshold).all().item()
 
                 else:
                     valid = (t != -100)
@@ -182,42 +208,50 @@ class MultiHeadEvaluator:
 
         return ok / max(total, 1)
     
-    def partial_score(self, predictions, targets):
+    def partial_score(self, predictions, targets, reg_rel_threshold=0.10):
         n = len(next(iter(targets.values())))
-        scores = []
+        clf_scores = []
+        reg_scores = []
 
         for i in range(n):
-            total = 0
-            correct = 0
+            clf_total, clf_correct = 0, 0
+            reg_total, reg_correct = 0, 0
 
             for field, ev in self.fields.items():
                 p = predictions[field][i]
                 t = targets[f"label_{field}"][i]
 
                 if ev.field_type == "regression":
-                    p = p.squeeze(-1)
-
                     t_valid = (t != -100)
 
                     if t_valid.sum() == 0:
                         continue
                     
-                    correct += int((abs(p[t_valid] - t[t_valid]) < 1e-3).all().item())
-                    total += 1
+                    stats = self.numeric_stats.get(field, {})
+                    mean, std = stats.get("mean", 0.0), stats.get("std", 1.0)
+                    p_v = p.squeeze(-1)[t_valid] * std + mean
+                    t_v = t[t_valid] * std + mean
+                    rel_err = (p_v - t_v).abs() / (t_v.abs().clamp(min=1e-6))
+                    reg_correct += int((rel_err < reg_rel_threshold).all().item())
+                    reg_total += 1
                 else:
-                    valid = (t != -100)
+                    t_valid = (t != -100)
 
-                    if valid.sum() == 0:
+                    if t_valid.sum() == 0:
                         continue
-
-                    p_cls = p.argmax(-1)
                     
-                    correct += int((p_cls[valid] == t[valid]).all().item())
-                    total += 1
+                    clf_correct += int((p.argmax(-1)[t_valid] == t[t_valid]).all().item())
+                    clf_total += 1
 
-            scores.append(correct / max(total, 1))
+            if clf_total > 0:
+                clf_scores.append(clf_correct / clf_total)
+            if reg_total > 0:
+                reg_scores.append(reg_correct / reg_total)
 
-        return sum(scores) / max(len(scores), 1)
+        return {
+            "clf_partial": sum(clf_scores) / max(len(clf_scores), 1),
+            "reg_partial": sum(reg_scores) / max(len(reg_scores), 1),
+        }
 
 def evaluate(model, dataloader, criterion, device, evaluator: MultiHeadEvaluator):
     model.eval()
@@ -254,10 +288,26 @@ def evaluate(model, dataloader, criterion, device, evaluator: MultiHeadEvaluator
 
     metrics = evaluator.compute()
     avg_loss = evaluator.total_loss / max(evaluator.total_count, 1)
+
+    denorm_mae = {}
+    for field, ev in evaluator.fields.items():
+        if ev.field_type != "regression":
+            continue
+        pred = all_predictions[field].squeeze(-1)
+        true = all_targets[f"label_{field}"]
+        mask = (true != -100)
+        if mask.sum() == 0:
+            continue
+        stats = evaluator.numeric_stats.get(field, {})
+        mean, std = stats.get("mean", 0.0), stats.get("std", 1.0)
+        pred_denorm = pred[mask] * std + mean
+        true_denorm = true[mask] * std + mean
+        denorm_mae[field] = (pred_denorm - true_denorm).abs().mean().item()
+
     mae_dict = {f: v["mae"] for f, v in metrics.items()}
     acc_dict = {f: v["acc"] for f, v in metrics.items()}
 
     exact = evaluator.exact_match(all_predictions, all_targets)
     partial = evaluator.partial_score(all_predictions, all_targets)
 
-    return avg_loss, loss_dict, mae_dict, acc_dict, exact, partial
+    return avg_loss, loss_dict, mae_dict, acc_dict, exact, partial, denorm_mae
