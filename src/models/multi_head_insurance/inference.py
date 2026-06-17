@@ -81,7 +81,11 @@ def predict(
             pred_denorm = pred_val * std + mean
 
             for i, val in enumerate(pred_denorm.tolist()):
-                rows[i][field] = round(val, 4)
+                # Round to integer for year field, 2 decimals for others
+                if field == "auto_year":
+                    rows[i][field] = int(round(val))
+                else:
+                    rows[i][field] = round(val, 2)
 
         else:
             pred_idx = pred.argmax(-1).cpu().tolist()
