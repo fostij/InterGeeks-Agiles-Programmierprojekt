@@ -1,7 +1,7 @@
 import random
 import pandas as pd
 from dataclasses import dataclass
-from src.ml_config import VALID_CASE_TYPES
+from src.ml_config import VALID_CASE_TYPES, NUMERIC_FIELDS
 from src.utils.fake_data_generators.accident_text_constants import (
     CASE_CONFIG,
     DAMAGE_INTRO_TEMPLATES,
@@ -40,16 +40,28 @@ class AccidentDataGenerator:
         self.target_fields = target_fields
 
     def generate_text(self, row: dict, seed: int = None) -> str:
-        text, _ = self._generate(row, seed)
+        rng = random.Random(seed) if seed is not None else random.Random()
+        text, _ = self._generate(row, rng)
         return text
 
     def generate_with_labels(self, row: dict, seed: int = None) -> tuple[str, dict]:
-        return self._generate(row, seed)
-    
-    def _generate(self, row: dict, seed: int = None) -> tuple[str, dict]:
         rng = random.Random(seed) if seed is not None else random.Random()
+        return self._generate(row, rng)
+    
+    def generate_with_labels_and_vehicles(self, row: dict, vehicle_ref: tuple[str, str, int], seed: int = None):
+        rng = random.Random(seed) if seed is not None else random.Random()
+        vehicle = vehicle_ref
+        ctx = self._create_generation_context(
+            row,
+            rng,
+            vehicle=vehicle,
+        )
 
-        ctx = self._create_generation_context(row, rng)
+        return self._generate(row, rng, ctx)
+
+    def _generate(self, row: dict, rng: random.Random, ctx = None) -> tuple[str, dict]:
+        if ctx is None:
+            ctx = self._create_generation_context(row, rng)
 
         core_parts = self._build_core_sentences(ctx, rng)
         core_parts = self._inject_context_and_extras(core_parts, ctx.context_vars, rng)
@@ -60,10 +72,13 @@ class AccidentDataGenerator:
     
         return text, labels
 
-    def _create_generation_context(self, row: dict, rng: random.Random) -> GenerationContext:
-        make = row.get("auto_make", "").strip()
-        model = row.get("auto_model", "").strip()
-        year = row["auto_year"]
+    def _create_generation_context(self, row: dict, rng: random.Random, vehicle: tuple[str, str, int] | None = None,) -> GenerationContext:
+        if vehicle:
+            make, model, year = vehicle
+        else:
+            make = row.get("auto_make", "").strip()
+            model = row.get("auto_model", "").strip()
+            year = row["auto_year"]
         
         case_type = self._resolve_case_type(row)
         severity = row["incident_severity"]
@@ -104,17 +119,17 @@ class AccidentDataGenerator:
             val = row.get(field, "")
             
             if val == "" or pd.isna(val) or val == "?":
-                labels[field] = -100 if field in ["auto_year", "number_of_vehicles_involved", "witnesses"] else None
+                labels[field] = -100 if field in NUMERIC_FIELDS else None
                 continue
 
             if field in ["auto_make", "auto_model"] and not vehicle_present:
                 labels[field] = None
             elif field == "auto_year" and not year_present:
-                labels[field] = -100
+                labels[field] = None
             elif field == "weather" and ctx.context_vars.get("weather") == "":
                 labels[field] = None
             elif field == "witnesses" and ctx.context_vars.get("witness") == "":
-                labels[field] = -100
+                labels[field] = None
             elif field == "authorities_contacted" and ctx.context_vars.get("police") == "":
                 labels[field] = None
             else:

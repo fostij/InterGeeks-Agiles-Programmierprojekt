@@ -1,5 +1,3 @@
-from functools import partial
-
 import pandas as pd
 import json
 import torch
@@ -66,7 +64,6 @@ class BestModelTracker:
 
 def get_device():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #device = "cpu"
     print(f"Using processing engine: {device}")
     return device
 

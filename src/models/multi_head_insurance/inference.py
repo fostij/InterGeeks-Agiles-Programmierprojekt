@@ -4,7 +4,6 @@ import pandas as pd
 from transformers import AutoTokenizer
 from src.models.multi_head_insurance.models import GermanInsuranceClassifier
 
-
 def load_model(checkpoint_path: str, device):
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
 

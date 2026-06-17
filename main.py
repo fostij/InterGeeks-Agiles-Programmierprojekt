@@ -1,5 +1,5 @@
 from src.models.multi_head_insurance.train import TrainConfig
-from src.ml_config import BEST_CHECKPOINT, DATASET_PATH, NETWORK_CONFIG_PATH, INPUT_FILE, OUTPUT_CHECKPOINT
+from src.ml_config import BEST_CHECKPOINT_PATH, MULTI_HEAD_DATASET_PATH, NETWORK_CONFIG_PATH, INPUT_FILE, OUTPUT_CHECKPOINT_PATH
 from src.models.multi_head_insurance.interface import train, predict
 def main() -> None:
     
