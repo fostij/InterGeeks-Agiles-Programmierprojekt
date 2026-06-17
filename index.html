@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>InterGeeks AI Claims Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
+    <div id="app" class="container mx-auto p-6 max-w-6xl">
+        <header class="mb-8 border-b border-gray-800 pb-4 flex justify-between items-center">
+            <h1 class="text-3xl font-extrabold text-blue-500 tracking-tight">⚡ InterGeeks AI Insurance Core</h1>
+            <span class="bg-green-500 text-gray-900 font-bold px-3 py-1 rounded text-xs">PIPELINE ACTIVE</span>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-xl h-fit border border-gray-700">
+                <h2 class="text-xl font-bold mb-4 text-blue-400">Neuen Schadenfall einreichen</h2>
+                <form @submit.prevent="submitClaim" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-400 mb-1">Unfallbeschreibung</label>
+                        <textarea v-model="form.roh_beschreibung" rows="4" required placeholder="z.B. Mein VW hat einen Frontalschaden. Die Stoßstange vorn ist komplett demoliert..." class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus:outline-none focus:border-blue-500"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-400 mb-1">Unfallbild URL (Optional)</label>
+                        <input v-model="form.unfall_bild_url" type="url" placeholder="https://images.com/bumper.jpg" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus:outline-none focus:border-blue-500">
+                    </div>
+                    <button type="submit" :disabled="loading" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200 disabled:opacity-50">
+                        {{ loading ? 'Sende an AI Portal...' : 'Schadenmeldung abschicken' }}
+                    </button>
+                </form>
+            </div>
+
+            <div class="lg:col-span-2 bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-700">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-blue-400">Echtzeit Datenbank-Einträge</h2>
+                    <button @click="fetchClaims" class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded">Aktualisieren 🔄</button>
+                </div>
+
+                <div v-if="claims.length === 0" class="text-center py-12 text-gray-500">Keine Schadensfälle in der Datenbank gefunden.</div>
+                <div v-else class="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                    <div v-for="claim in claims" :key="claim.id" class="p-4 rounded-lg bg-gray-900 border border-l-4 transition-all duration-300" :class="statusBorderClass(claim.verarbeitungs_status)">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-mono text-gray-500">ID: #{{ claim.id }} | {{ formatDate(claim.erstellt_am) }}</span>
+                            <span :class="statusBadgeClass(claim.verarbeitungs_status)" class="px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">
+                                {{ claim.verarbeitungs_status }}
+                            </span>
+                        </div>
+                        <p class="text-sm italic text-gray-300 mb-3">"{{ claim.roh_beschreibung }}"</p>
+                        
+                        <div v-if="claim.verarbeitungs_status === 'verarbeitet'" class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-gray-800 text-xs">
+                            <div><span class="text-gray-500 block">Automarke</span><strong class="text-blue-400">{{ claim.auto_marke }}</strong></div>
+                            <div><span class="text-gray-500 block">Teile</span><strong class="text-white">{{ claim.beschaedigte_teile }}</strong></div>
+                            <div><span class="text-gray-500 block">Kosten (AI)</span><strong class="text-emerald-400">{{ claim.vorhergesagte_reparaturkosten }} €</strong></div>
+                            <div><span class="text-gray-500 block">Totalschaden?</span><strong :class="claim.ist_totalschaden ? 'text-red-500':'text-gray-400'">{{ claim.ist_totalschaden ? 'JA' : 'NEIN' }}</strong></div>
+                        </div>
+                        <div v-else-if="claim.verarbeitungs_status === 'ausstehend'" class="text-xs text-yellow-500 flex items-center space-x-2 animate-pulse">
+                            <span>🤖 AI Pipeline analysiert den Freitext... Bitte warten.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+        createApp({
+            setup() {
+                const claims = ref([]);
+                const loading = ref(false);
+                const form = ref({ roh_beschreibung: '', unfall_bild_url: '' });
+                const API_URL = "http://127.00.1:8000/api/claims";
+
+                const fetchClaims = async () => {
+                    try {
+                        const res = await fetch(API_URL);
+                        claims.value = await res.json();
+                    } catch (err) { console.error("Error connecting to backend API Engine", err); }
+                };
+
+                const submitClaim = async () => {
+                    loading.value = true;
+                    try {
+                        await fetch(API_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(form.value)
+                        });
+                        form.value = { roh_beschreibung: '', unfall_bild_url: '' };
+                        await fetchClaims();
+                        // Polling mechanism to auto-refresh table updates as backend worker processes AI values
+                        setTimeout(fetchClaims, 4500);
+                    } catch (err) { console.error(err); }
+                    finally { loading.value = false; }
+                };
+
+                const statusBadgeClass = (s) => ({
+                    'bg-yellow-500 text-gray-900': s === 'ausstehend',
+                    'bg-emerald-500 text-gray-900': s === 'verarbeitet',
+                    'bg-red-600 text-white': s === 'fehlgeschlagen'
+                });
+
+                const statusBorderClass = (s) => ({
+                    'border-yellow-500': s === 'ausstehend',
+                    'border-emerald-500': s === 'verarbeitet',
+                    'border-red-600': s === 'fehlgeschlagen'
+                });
+
+                const formatDate = (dStr) => new Date(dStr).toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+
+                onMounted(fetchClaims);
+                setInterval(fetchClaims, 10000); // Polling baseline synchronization heartbeat
+
+                return { claims, form, loading, submitClaim, fetchClaims, statusBadgeClass, statusBorderClass, formatDate };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
