@@ -17,6 +17,7 @@ class GermanInsuranceClassifier(nn.Module):
         self.network_config = network_config
         self.dropout = nn.Dropout(dropout)
 
+        # Existing dynamic heads for your 14 attributes
         self.heads = nn.ModuleDict()
         for field, cfg in network_config.items():
             self.heads[field] = nn.Sequential(
@@ -25,6 +26,16 @@ class GermanInsuranceClassifier(nn.Module):
                 nn.Dropout(dropout),
                 nn.Linear(hidden_size // 2, cfg["size"]),
             )
+
+        # It takes the 768 tokens and compresses them to 1 continuous output value
+        self.vehicle_claim_head = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size // 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(
+                hidden_size // 2, 1
+            ),  # Size is 1 because it's a single float amount
+        )
 
     def forward(self, input_ids, attention_mask):
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
@@ -39,4 +50,10 @@ class GermanInsuranceClassifier(nn.Module):
 
         pooled = self.dropout(pooled)
 
-        return {field: head(pooled) for field, head in self.heads.items()}
+        # 1. Gather all your regular field predictions
+        predictions = {field: head(pooled) for field, head in self.heads.items()}
+
+        # .squeeze(-1) ensures the output shape matches your loss expectations [batch_size]
+        predictions["vehicle_claim"] = self.vehicle_claim_head(pooled).squeeze(-1)
+
+        return predictions

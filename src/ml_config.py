@@ -16,33 +16,41 @@ VALID_CASE_TYPES = {
     "Vehicle Theft",
 }
 
+# 1. Keep TARGET_FIELDS for your 14 multi-head attributes
 TARGET_FIELDS = [
-        "auto_year", 
-        "auto_make", 
-        "auto_model",
-        "incident_type", 
-        "incident_severity", 
-        "incident_city", 
-        "incident_state",
-        "collision_type", 
-        "property_damage", 
-        "witnesses",
-        "authorities_contacted", 
-        "police_report_available",
-        "number_of_vehicles_involved", 
-        "bodily_injuries"
-    ]
+    "auto_year",
+    "auto_make",
+    "auto_model",
+    "incident_type",
+    "incident_severity",
+    "incident_city",
+    "incident_state",
+    "collision_type",
+    "property_damage",
+    "witnesses",
+    "authorities_contacted",
+    "police_report_available",
+    "number_of_vehicles_involved",
+    "bodily_injuries",
+]
 
+# 2. Keep these dropped fields, but ensure vehicle_claim is NOT here
 TRASH_FIELDS = [
     "policy_number",
     "incident_location",
     "injury_claim",
     "total_claim_amount",
     "property_claim",
-    "_c39"
+    "_c39",
 ]
 
+# 3. Define your explicit final target
 PREDICTION_FIELD = "vehicle_claim"
 
+# 4. Define your field categories for preprocessing math
 NUMERIC_FIELDS = ["auto_year", "number_of_vehicles_involved", "witnesses"]
 CATEGORICAL_FIELDS = [f for f in TARGET_FIELDS if f not in NUMERIC_FIELDS]
+
+# 5. Add this helper line at the bottom so your dataset cleaner/loader
+# knows to normalize the financial Euro amounts during preprocessing!
+REGRESSION_TARGETS = NUMERIC_FIELDS + [PREDICTION_FIELD]

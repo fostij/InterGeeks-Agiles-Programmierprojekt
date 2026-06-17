@@ -30,7 +30,12 @@ def load_model(checkpoint_path: str, device):
         }
 
         model = GermanInsuranceClassifier(network_config=network_config)
-        model.load_state_dict(checkpoint["model_state_dict"])
+
+        # ─── 🛠️ FIXED HERE: ADDED strict=False ──────────────────────────────
+        # This prevents PyTorch from crashing due to the missing weights
+        # for our newly added 15th 'vehicle_claim_head'.
+        model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+
         model.to(device)
         model.eval()
 
@@ -63,7 +68,7 @@ def predict(
     attention_mask = encoding["attention_mask"].to(device)
 
     # Clear cache before inference to avoid memory issues
-    if device.type == "cuda":
+    if isinstance(device, torch.device) and device.type == "cuda":
         torch.cuda.empty_cache()
 
     with torch.no_grad():
@@ -72,6 +77,24 @@ def predict(
     rows = [{} for _ in texts]
 
     for field, pred in predictions.items():
+        # ─── 🛠️ SPECIALIZED DECODER FOR VEHICLE CLAIM ───────────────────────
+        if field == "vehicle_claim":
+            pred_val = pred.cpu()  # Already squeezed in models.py forward pass
+
+            # Fetch means and standard deviations to reverse the normalization math
+            # Default to 0 mean and 1 std if stats aren't generated yet
+            mean = numeric_stats.get("vehicle_claim", {}).get("mean", 0.0)
+            std = numeric_stats.get("vehicle_claim", {}).get("std", 1.0)
+
+            # De-normalize back into real Euro amounts!
+            pred_denorm = pred_val * std + mean
+
+            for i, val in enumerate(pred_denorm.tolist()):
+                # Round financial claim outputs to 2 decimal places (cents)
+                rows[i][field] = round(val, 2)
+            continue
+
+        # ─── Standard processing loop for the other 14 features ───────────
         cfg = network_config[field]
 
         if cfg["type"] == "regression":
@@ -81,7 +104,6 @@ def predict(
             pred_denorm = pred_val * std + mean
 
             for i, val in enumerate(pred_denorm.tolist()):
-                # Round to integer for year field, 2 decimals for others
                 if field == "auto_year":
                     rows[i][field] = int(round(val))
                 else:

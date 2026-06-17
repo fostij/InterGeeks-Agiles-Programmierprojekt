@@ -3,24 +3,27 @@ import torch
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer
 
+
 class GermanInsuranceDataset(Dataset):
-    def __init__(self, jsonl_path: str,
-                 numeric_stats: dict,
-                 network_config,
-                 tokenizer_name: str = "uklfr/gottbert-base", 
-                 max_len: int = 256,
-                 ):
+    def __init__(
+        self,
+        jsonl_path: str,
+        numeric_stats: dict,
+        network_config,
+        tokenizer_name: str = "uklfr/gottbert-base",
+        max_len: int = 256,
+    ):
         self.samples = []
         with open(jsonl_path, "r", encoding="utf-8") as f:
             for line in f:
                 if line.strip():
                     self.samples.append(json.loads(line))
-        
+
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
         self.max_len = max_len
         self.numeric_stats = numeric_stats
         self.network_config = network_config
-        
+
     def __len__(self):
         return len(self.samples)
 
@@ -35,16 +38,37 @@ class GermanInsuranceDataset(Dataset):
             padding="max_length",
             truncation=True,
             max_length=self.max_len,
-            return_tensors="pt"
+            return_tensors="pt",
         )
 
         item = {
             "input_ids": encoding["input_ids"].squeeze(0),
             "attention_mask": encoding["attention_mask"].squeeze(0),
-            "target_price": torch.tensor(target_price, dtype=torch.float32)
+            # Keep original target_price intact just in case other evaluation metrics need it
+            "target_price": torch.tensor(target_price, dtype=torch.float32),
         }
 
+        # ─── 🛠️ ADD THIS: NORMALIZE THE VEHICLE CLAIM FINANCIAL VALUE ────────
+        # This reads the mean and standard deviation for the cash amounts,
+        # converting raw Euros (e.g. 15000) into optimized neural network scales.
+        if "vehicle_claim" in self.numeric_stats and target_price != -100:
+            claim_mean = self.numeric_stats["vehicle_claim"]["mean"]
+            claim_std = self.numeric_stats["vehicle_claim"]["std"]
+            normalized_claim = (target_price - claim_mean) / claim_std
+            item["label_vehicle_claim"] = torch.tensor(
+                normalized_claim, dtype=torch.float32
+            )
+        else:
+            # If data is missing or stats aren't generated yet, pass -100 to mask it out
+            item["label_vehicle_claim"] = torch.tensor(
+                target_price, dtype=torch.float32
+            )
+
+        # Process your remaining 14 categorical and numeric targets
         for field, val in labels.items():
+            if field == "vehicle_claim":
+                continue
+
             if self.network_config[field]["type"] == "regression":
                 if val == -100:
                     item[f"label_{field}"] = torch.tensor(-100.0)
