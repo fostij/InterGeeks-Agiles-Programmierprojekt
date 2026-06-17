@@ -62,10 +62,7 @@ class FieldEvaluator:
             self.true_cache.append(true[wrong].detach().cpu())
 
     def compute(self):
-        return {
-            "acc": self.correct / max(self.total, 1),
-            "mae": self.mae_sum / max(self.mae_count, 1),
-        }
+        return self.correct / max(self.total, 1)
 
 class MultiHeadEvaluator:
     def __init__(self, network_config):
@@ -210,7 +207,7 @@ def evaluate(model, dataloader, criterion, device, evaluator: MultiHeadEvaluator
     metrics = evaluator.compute()
     avg_loss = evaluator.total_loss / max(evaluator.total_count, 1)
 
-    acc_dict = {f: v["acc"] for f, v in metrics.items()}
+    acc_dict = metrics
 
     exact = evaluator.exact_match(all_predictions, all_targets)
     partial = evaluator.partial_score(all_predictions, all_targets)

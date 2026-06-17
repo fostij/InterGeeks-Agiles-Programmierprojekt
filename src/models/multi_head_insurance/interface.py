@@ -14,7 +14,6 @@ def predict(*text: str):
     result_df = predict_fn(
         texts=list(text),
         model=model,
-        network_config=network_config,
         label_encoders=label_encoders,
         device=device,
     )

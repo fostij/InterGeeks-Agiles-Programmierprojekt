@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 import pandas as pd
 from transformers import AutoTokenizer
-from ml_config import INTEGER_FIELDS
+from src.ml_config import INTEGER_FIELDS
 from src.utils.data_loader import get_vehicle_dataset
 from src.models.multi_head_insurance.models import GermanInsuranceClassifier
 

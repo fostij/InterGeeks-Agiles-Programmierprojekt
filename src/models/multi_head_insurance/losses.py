@@ -6,7 +6,6 @@ class DynamicMultiHeadLoss(nn.Module):
         self.target_fields = target_fields
         self.network_config = network_config
         self.clf_criterion = nn.CrossEntropyLoss(ignore_index=-100)
-        self.reg_criterion = nn.MSELoss(reduction='none')
 
         self.weights = {
             f: cfg.get("loss_weight", 1.0) 
