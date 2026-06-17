@@ -1,8 +1,11 @@
+import sys
+import traceback
 import torch
 import torch.nn.functional as F
 import pandas as pd
 from transformers import AutoTokenizer
 from ml_config import INTEGER_FIELDS
+from src.utils.data_loader import get_vehicle_dataset
 from src.models.multi_head_insurance.models import GermanInsuranceClassifier
 
 def load_model(checkpoint_path: str, device):
@@ -65,8 +68,45 @@ def predict(
                 value = encoder.get(idx, None)
 
                 if field in INTEGER_FIELDS:
-                    value = int(value) if value is not None else None
+                    value = int(str(value)) if value is not None else None
 
                 rows[i][field] = value
 
-    return pd.DataFrame(rows)
+    catalog = get_vehicle_dataset()
+
+    for i in range(len(texts)):
+        make = rows[i].get("auto_make")
+        year = rows[i].get("auto_year")
+    
+        if all([make, year]):
+            rows[i]["auto_make"], rows[i]["auto_year"] = \
+                validate_vehicle_with(make, int(year), catalog)
+
+    try:
+        df = pd.DataFrame(rows)
+    except Exception as e:
+        print(f"DataFrame creation failed: {e}")
+        traceback.print_exc()
+        sys.exit(1)
+
+    return df
+
+def validate_vehicle_with(make: str, year: int, catalog: pd.DataFrame):
+    match = catalog[
+        (catalog["make"] == make) &
+        (catalog["year"] == year)
+    ]
+
+    if not match.empty:
+        return make, year
+    
+    same_model = catalog[
+        (catalog["make"] == make)
+    ]
+
+    if not same_model.empty:
+        closest_year = same_model["year"].values
+        nearest = closest_year[abs(closest_year - year).argmin()]
+        return make, int(nearest)
+    
+    return make, None
