@@ -13,10 +13,8 @@ build/
 
 # Data files
 data/raw/ 
-data/raw/car_damage/
 src/cnn/model.keras
-src/cnn/klassen.json
-
+src/cnn/classes.json
 # Virtual environments
 .venv/
 venv/
