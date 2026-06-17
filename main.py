@@ -9,8 +9,9 @@ def main() -> None:
         best_checkpoint=BEST_CHECKPOINT_PATH,
         output_checkpoint=OUTPUT_CHECKPOINT_PATH,
         input_file=INSURANCE_DATASET_PATH,
-        epochs=1,
-        dataset_count=100,
+        epochs=15,
+        batch_size=16,
+        dataset_count=10000,
         lr=2e-5,
         max_grad_norm=1.0,
     )
