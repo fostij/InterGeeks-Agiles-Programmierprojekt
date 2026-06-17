@@ -10,7 +10,6 @@ from src.models.multi_head_insurance.losses import DynamicMultiHeadLoss
 from src.models.multi_head_insurance.models import GermanInsuranceClassifier
 from src.models.multi_head_insurance.dataset import GermanInsuranceDataset
 from src.utils.labels_encoder import prepare_pipeline_and_save_jsonl
-from src.utils.descriptive_statistics import get_descriptive_statistics_for_numeric
 from src.models.multi_head_insurance.engine import MultiHeadEvaluator, evaluate
 from src.utils.data_orchestrator import get_cleaned_dataset
 
@@ -49,11 +48,11 @@ class BestModelTracker:
             return value > self.best_value
         return value < self.best_value
 
-    def update(self, value: float, epoch: int, model, optimizer, cfg, num_stats) -> bool:
+    def update(self, value: float, epoch: int, model, optimizer, cfg) -> bool:
         if self.is_better(value):
             self.best_value = value
             self.best_epoch = epoch
-            save_checkpoint(cfg, model, optimizer, epoch, value, num_stats)
+            save_checkpoint(cfg, model, optimizer, epoch, value)
             print(f"  ✓ New best {self.metric}={value:.4f} — checkpoint saved")
             return True
         return False
@@ -137,7 +136,7 @@ def train_epoch(train_loader, model, criterion, optimizer, scheduler, device, ep
     return running_loss / len(train_loader)
 
 def evaluate_epoch(val_loader, model, criterion, device, epoch, evaluator: MultiHeadEvaluator):
-    avg_loss, loss_dict, mae_dict, acc_dict, exact, partial, denorm_mae = evaluate(
+    avg_loss, loss_dict, acc_dict, exact, partial = evaluate(
         model=model,
         dataloader=val_loader,
         criterion=criterion,
@@ -145,24 +144,16 @@ def evaluate_epoch(val_loader, model, criterion, device, epoch, evaluator: Multi
         evaluator=evaluator
     )
 
-    clf_p = partial.get("clf_partial", 0.0)
-    reg_p = partial.get("reg_partial", 0.0)
+    print(f"\n📊 Epoch {epoch+1} | val_loss: {avg_loss:.4f} | exact: {exact:.4f} | partial: {partial:.4f}")
+    return avg_loss, loss_dict, acc_dict, exact, partial
 
-    print(f"\n📊 Epoch {epoch+1} | val_loss: {avg_loss:.4f} | exact: {exact:.4f} | clf_partial: {clf_p:.4f} | reg_partial: {reg_p:.4f}")
-
-    if denorm_mae:
-        print("   Denorm MAE:", {k: f"{v:.2f}" for k, v in denorm_mae.items()})
-
-    return avg_loss, loss_dict, mae_dict, acc_dict, exact, partial, denorm_mae
-
-def save_checkpoint(cfg, model, optimizer, epoch, loss, num_stats):
+def save_checkpoint(cfg, model, optimizer, epoch, loss):
     checkpoint = {
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
         "epoch": epoch,
         "loss": loss,
         "network_config": cfg.network_config,
-        "numeric_stats": num_stats,
         "label_encoders": {
             field: le.classes_.tolist()
             for field, le in cfg.label_encoders.items()
@@ -171,23 +162,14 @@ def save_checkpoint(cfg, model, optimizer, epoch, loss, num_stats):
 
     torch.save(checkpoint, cfg.output_checkpoint)
 
-def build_report(network_config, loss_dict, mae_dict, acc_dict, denorm_mae=None):
+def build_report(network_config, loss_dict, acc_dict):
     print("\n===== EVALUATION REPORT =====")
 
     report = []
 
     for field in network_config.keys():
         row = {"field": field}
-
-        if network_config[field]["type"] == "regression":
-            row["MAE_norm"] = mae_dict.get(field)
-            row["MAE_real"] = denorm_mae.get(field) if denorm_mae else None
-            row["accuracy"] = None
-        else:
-            row["MAE_norm"] = None
-            row["MAE_real"] = None
-            row["accuracy"] = acc_dict.get(field)
-
+        row["accuracy"] = acc_dict.get(field)
         row["loss"] = loss_dict.get(field, None)
 
         report.append(row)
@@ -201,10 +183,8 @@ def run_training(cfg: TrainConfig):
 
     dataset = get_cleaned_dataset()
     _ = build_save_set_network_config(cfg, dataset)
-    
-    num_stats = get_descriptive_statistics_for_numeric(dataset)
 
-    dataset = GermanInsuranceDataset(jsonl_path=cfg.dataset_path, numeric_stats=num_stats, network_config=cfg.network_config)
+    dataset = GermanInsuranceDataset(jsonl_path=cfg.dataset_path, network_config=cfg.network_config)
     
     train_loader, val_loader = build_dataloaders(cfg, dataset)
 
@@ -218,7 +198,7 @@ def run_training(cfg: TrainConfig):
     )
     print("\nTraining started")
     
-    evaluator = MultiHeadEvaluator(cfg.network_config, numeric_stats=num_stats)
+    evaluator = MultiHeadEvaluator(cfg.network_config)
 
     tracker = BestModelTracker(
         output_checkpoint=cfg.best_checkpoint,
@@ -231,43 +211,34 @@ def run_training(cfg: TrainConfig):
     for epoch in range(cfg.epochs):
         avg_loss = train_epoch(train_loader, model, criterion, optimizer, scheduler, device, epoch, cfg)
 
-        val_loss, loss_dict, mae_dict, acc_dict, exact, partial, denorm_mae = evaluate_epoch(val_loader, model, criterion, device, epoch, evaluator)
+        val_loss, loss_dict, acc_dict, exact, partial = evaluate_epoch(val_loader, model, criterion, device, epoch, evaluator)
 
         row = {
             "epoch": epoch + 1,
             "train_loss": avg_loss,
             "val_loss": val_loss,
             "exact": exact,
-            "clf_partial": partial.get("clf_partial"),
-            "reg_partial": partial.get("reg_partial"),
+            "partial": partial,
         }
-
-        for field, value in denorm_mae.items():
-            row[f"{field}_denorm_mae"] = value
 
         for field, value in loss_dict.items():
             row[f"{field}_loss"] = value
-
-        for field, value in mae_dict.items():
-            row[f"{field}_mae"] = value
 
         for field, value in acc_dict.items():
             row[f"{field}_acc"] = value
 
         history.append(row)
 
-        report = build_report(cfg.network_config, loss_dict, mae_dict, acc_dict, denorm_mae)
+        report = build_report(cfg.network_config, loss_dict, acc_dict)
         print(report)
         evaluator.error_analyzer.report(top_n=3)
 
-        tracker_value = (partial["clf_partial"] + partial["reg_partial"]) / 2
         tracker.update(
-            value=tracker_value,
+            value=partial,
             epoch=epoch,
             model=model,
             optimizer=optimizer,
             cfg=cfg,
-            num_stats=num_stats
         )
 
     tracker.summary()

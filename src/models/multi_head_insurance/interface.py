@@ -9,13 +9,12 @@ def train(config: TrainConfig):
 def predict(*text: str):
     device = torch.device("cpu")
 
-    model, network_config, numeric_stats, label_encoders = load_model(BEST_CHECKPOINT_PATH, device)
+    model, network_config, label_encoders = load_model(BEST_CHECKPOINT_PATH, device)
 
     result_df = predict_fn(
         texts=list(text),
         model=model,
         network_config=network_config,
-        numeric_stats=numeric_stats,
         label_encoders=label_encoders,
         device=device,
     )

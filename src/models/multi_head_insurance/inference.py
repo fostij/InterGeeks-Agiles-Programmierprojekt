@@ -1,14 +1,13 @@
 import torch
-import json
+import torch.nn.functional as F
 import pandas as pd
 from transformers import AutoTokenizer
+from ml_config import INTEGER_FIELDS
 from src.models.multi_head_insurance.models import GermanInsuranceClassifier
 
 def load_model(checkpoint_path: str, device):
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-
     network_config = checkpoint["network_config"]
-    numeric_stats = checkpoint["numeric_stats"]
 
     label_encoders = {
         field: {i: val for i, val in enumerate(classes)}
@@ -20,16 +19,15 @@ def load_model(checkpoint_path: str, device):
     model.to(device)
     model.eval()
 
-    return model, network_config, numeric_stats, label_encoders
+    return model, network_config, label_encoders
 
 
 def predict(
     texts: list[str],
     model,
-    network_config: dict,
-    numeric_stats: dict,
     label_encoders: dict,       # {field: {int_index: original_value}}
     tokenizer_name: str = "uklfr/gottbert-base",
+    clf_threshold: float = 0.6,
     max_len: int = 256,
     device = "cpu",
 ) -> pd.DataFrame:
@@ -53,22 +51,22 @@ def predict(
     rows = [{} for _ in texts]
 
     for field, pred in predictions.items():
-        cfg = network_config[field]
+        probs = F.softmax(pred, dim=-1)
+        confidence, pred_idx = probs.max(dim=-1)
 
-        if cfg["type"] == "regression":
-            pred_val = pred.squeeze(-1).cpu()
-            mean = numeric_stats[field]["mean"]
-            std = numeric_stats[field]["std"]
-            pred_denorm = pred_val * std + mean
+        encoder = label_encoders.get(field, {})
 
-            for i, val in enumerate(pred_denorm.tolist()):
-                rows[i][field] = round(val, 4)
+        for i in range(len(texts)):
+            if confidence[i].item() < clf_threshold:
+                rows[i][field] = None
 
-        else:
-            pred_idx = pred.argmax(-1).cpu().tolist()
-            encoder = label_encoders.get(field, {})
+            else:
+                idx = pred_idx[i].item()
+                value = encoder.get(idx, None)
 
-            for i, idx in enumerate(pred_idx):
-                rows[i][field] = encoder.get(idx, idx)
+                if field in INTEGER_FIELDS:
+                    value = int(value) if value is not None else None
+
+                rows[i][field] = value
 
     return pd.DataFrame(rows)

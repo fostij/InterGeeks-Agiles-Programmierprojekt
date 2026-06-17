@@ -45,5 +45,6 @@ FIELDS_TO_DELETE = [
 
 PREDICTION_FIELD = "vehicle_claim"
 
+INTEGER_FIELDS = ["auto_year", "witnesses", "number_of_vehicles_involved", "bodily_injuries"]
 NUMERIC_FIELDS = []
 CATEGORICAL_FIELDS = [f for f in TARGET_FIELDS if f not in NUMERIC_FIELDS]
