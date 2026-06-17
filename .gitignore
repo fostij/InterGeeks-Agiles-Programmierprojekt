@@ -73,3 +73,13 @@ logs/
 # Personal Presentation & Documentation Notes
 presentation_notes.txt
 Documentation.md
+
+/catboost_info/
+
+/incident_type_model/
+/flan_ie_model/
+*.jsonl
+network_config.json
+*.pt
+/data/output/
+/data/raw/
