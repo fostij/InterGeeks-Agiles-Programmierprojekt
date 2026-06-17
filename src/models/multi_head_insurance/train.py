@@ -52,7 +52,7 @@ class BestModelTracker:
         if self.is_better(value):
             self.best_value = value
             self.best_epoch = epoch
-            save_checkpoint(cfg, model, optimizer, epoch, value)
+            save_checkpoint(cfg, model, optimizer, epoch, value, path=self.output_checkpoint)
             print(f"  ✓ New best {self.metric}={value:.4f} — checkpoint saved")
             return True
         return False
@@ -111,7 +111,12 @@ def train_step(batch, model, criterion, optimizer, scheduler, device, max_grad_n
         batch_targets[f"label_{field}"] = batch[f"label_{field}"].to(device)
                 
     predictions = model(input_ids, attention_mask)
-            
+    
+    for field, tensor in batch_targets.items():
+        max_val = tensor[tensor != -100].max().item() if (tensor != -100).any() else -1
+        num_classes = network_config[field.replace("label_", "")]["size"]
+        if max_val >= num_classes:
+            print(f"INVALID: {field} max={max_val} but size={num_classes}")
     loss, loss_dict = criterion(predictions, batch_targets)
             
     loss.backward()
@@ -147,7 +152,7 @@ def evaluate_epoch(val_loader, model, criterion, device, epoch, evaluator: Multi
     print(f"\n📊 Epoch {epoch+1} | val_loss: {avg_loss:.4f} | exact: {exact:.4f} | partial: {partial:.4f}")
     return avg_loss, loss_dict, acc_dict, exact, partial
 
-def save_checkpoint(cfg, model, optimizer, epoch, loss):
+def save_checkpoint(cfg, model, optimizer, epoch, loss, path=None):
     checkpoint = {
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
@@ -160,7 +165,8 @@ def save_checkpoint(cfg, model, optimizer, epoch, loss):
         }
     }
 
-    torch.save(checkpoint, cfg.output_checkpoint)
+    save_path = path or cfg.output_checkpoint
+    torch.save(checkpoint, save_path)
 
 def build_report(network_config, loss_dict, acc_dict):
     print("\n===== EVALUATION REPORT =====")

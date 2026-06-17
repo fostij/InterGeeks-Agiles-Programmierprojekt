@@ -116,6 +116,14 @@ class AccidentDataGenerator:
         year_present = vehicle_present and ctx.with_year
         
         for field in self.target_fields:
+            if field == "auto_make":
+                labels[field] = ctx.make if vehicle_present else None
+                continue
+                    
+            if field == "auto_year":
+                labels[field] = ctx.year if year_present else None
+                continue
+
             val = row.get(field, "")
             
             if val == "" or pd.isna(val) or val == "?":

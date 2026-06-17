@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 
 class DynamicMultiHeadLoss(nn.Module):
@@ -21,7 +22,8 @@ class DynamicMultiHeadLoss(nn.Module):
             w = self.weights[field]
 
             loss_value = self.clf_criterion(pred_logits, true_labels)
-
+            if torch.isnan(loss_value):
+                loss_value = torch.tensor(0.0, device=pred_logits.device)
             total_loss += w * loss_value
             loss_dict[field] = loss_value.item()            
                 

@@ -25,12 +25,16 @@ class ErrorAnalyzer:
 
         print("\n===== ERROR ANALYSIS =====")
         for field, errs in by_field.items():
-            print(f"\n[{field}] — {len(errs)} misclassified")
-            for e in errs[:top_n]:
+            all_pairs = []
+            for e in errs:
                 preds = e["pred"].tolist()
                 trues = e["true"].tolist()
                 for p, t in zip(preds, trues):
-                    print(f"  pred={p}  true={t}")
+                    all_pairs.append((p, t))
+
+            print(f"\n[{field}] — {len(all_pairs)} misclassified")
+            for p, t in all_pairs[:top_n]:  # ← top_n строк
+                print(f"  pred={p}  true={t}")
 
 class FieldEvaluator:
     def __init__(self, field_type):

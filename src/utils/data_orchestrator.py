@@ -70,40 +70,42 @@ def get_descriptions_and_labels(count: int, df: pd.DataFrame) ->  List[Dict[str,
 
 def get_descriptions_labels_with_new_vehicles(count: int, df: pd.DataFrame) -> List[Dict[str, Any]]:
     vehicle_df = get_vehicle_dataset()
-    vehicle_df = shuffle_dataset(vehicle_df)
 
     if count <= 0:
         return []
-    
+
     accident_data_generator = AccidentDataGenerator(TARGET_FIELDS)
-    i = 0
-    insurence_row_index = 0
-    vehicle_row_index = 0
     results = []
 
-    while i < count:
-        if insurence_row_index >= len(df):
-            insurence_row_index = 0
-
-        if vehicle_row_index >= len(vehicle_df):
-            vehicle_row_index = 0
-
-        row_df = df.iloc[insurence_row_index]
-        row = row_df.to_dict()
+    makes = vehicle_df["make"].unique()
+    samples_per_make = max(1, count // len(makes)) + 1
     
-        vehicle_row = vehicle_df.iloc[vehicle_row_index]
-        vehicle = (vehicle_row["make"], vehicle_row["model"], vehicle_row["year"])
+    groups = []
+    for make, group in vehicle_df.groupby("make"):
+        sampled = group.sample(n=min(len(group), samples_per_make), replace=True)
+        groups.append(sampled)
+
+    balanced_vehicles = (
+        pd.concat(groups, ignore_index=True)
+        .sample(frac=1)
+        .reset_index(drop=True)
+    )
+
+    insurance_rows = df.sample(n=count, replace=True).reset_index(drop=True)
+
+    for i in range(count):
+        row = insurance_rows.iloc[i].to_dict()
+
+        vehicle_row = balanced_vehicles.iloc[i % len(balanced_vehicles)]
+        vehicle = (vehicle_row["make"], vehicle_row["model"], int(vehicle_row["year"]))
+
         description, labels = accident_data_generator.generate_with_labels_and_vehicles(row, vehicle)
-        target_price = float(row_df.get("vehicle_claim", 0.0))
-        
+        target_price = float(row.get("vehicle_claim", 0.0))
+
         results.append({
             "text": description,
             "labels": labels,
             "target_price": target_price
         })
 
-        i += 1
-        insurence_row_index += 1
-        vehicle_row_index += 1
-        
     return results
