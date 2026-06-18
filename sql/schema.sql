@@ -4,7 +4,7 @@
 -- Der Original-Datensatz (1 flache CSV-Tabelle, 40 Spalten) wird in
 -- 5 normalisierte Tabellen aufgeteilt (3. Normalform):
 --
---   kunden ──< policen ──< unfälle ──< schäden
+--   kunden ──< policen ──< unfaelle ──< schaeden
 --                  │
 --                  └──< fahrzeuge
 -- ----------------------------------------------------------------------
@@ -13,8 +13,8 @@
 
 -- Bestehende Tabellen löschen (Reihenfolge wegen Fremdschlüsseln wichtig!)
 -- CASCADE entfernt automatisch abhängige Objekte.
-DROP TABLE IF EXISTS schäden   CASCADE;
-DROP TABLE IF EXISTS unfälle   CASCADE;
+DROP TABLE IF EXISTS schaeden   CASCADE;
+DROP TABLE IF EXISTS unfaelle   CASCADE;
 DROP TABLE IF EXISTS fahrzeuge  CASCADE;
 DROP TABLE IF EXISTS policen    CASCADE;
 DROP TABLE IF EXISTS kunden     CASCADE;
@@ -63,9 +63,9 @@ CREATE TABLE fahrzeuge (
 );
 
 -- ---------------------------------------------------------------------
--- Tabelle 4: unfälle — gemeldete Vorfälle (1 Police -> n Unfälle)
+-- Tabelle 4: unfaelle — gemeldete Vorfälle (1 Police -> n Unfälle)
 -- ---------------------------------------------------------------------
-CREATE TABLE unfälle (
+CREATE TABLE unfaelle (
     unfall_id           SERIAL PRIMARY KEY,
     police_id           INTEGER NOT NULL REFERENCES policen(police_id),
     unfall_datum        DATE,                      
@@ -85,11 +85,11 @@ CREATE TABLE unfälle (
 );
 
 -- ---------------------------------------------------------------------
--- Tabelle 5: schäden — Schadenszahlungen (Zielvariable des Projekts!)
+-- Tabelle 5: schaeden — Schadenszahlungen (Zielvariable des Projekts!)
 -- ---------------------------------------------------------------------
-CREATE TABLE schäden (
+CREATE TABLE schaeden (
     schaden_id          SERIAL PRIMARY KEY,
-    unfall_id           INTEGER NOT NULL REFERENCES unfälle(unfall_id),
+    unfall_id           INTEGER NOT NULL REFERENCES unfaelle(unfall_id),
     gesamtschaden       NUMERIC(12,2),             
     personenschaden     NUMERIC(12,2),             
     sachschaden         NUMERIC(12,2),             
@@ -118,5 +118,5 @@ CREATE TABLE IF NOT EXISTS vorhersagen (
 -- ---------------------------------------------------------------------
 CREATE INDEX idx_policen_kunde    ON policen(kunde_id);
 CREATE INDEX idx_fahrzeuge_police ON fahrzeuge(police_id);
-CREATE INDEX idx_unfälle_police  ON unfälle(police_id);
-CREATE INDEX idx_schäden_unfall  ON schäden(unfall_id);
+CREATE INDEX idx_unfaelle_police  ON unfaelle(police_id);
+CREATE INDEX idx_schaeden_unfall  ON schaeden(unfall_id);
