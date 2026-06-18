@@ -10,6 +10,7 @@ from pathlib import Path
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from sqlalchemy import text
 
 # Projektordner zum Pfad hinzufügen, damit das CNN-Modul importierbar ist
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -20,7 +21,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 st.set_page_config(
     page_title="KFZ-Schadenprognose",
     page_icon="🛡️",
-    layout="wide",   # breites Layout für die zweispaltige Eingabe
+    layout="wide",
 )
 
 # ---------------------------------------------------------------------
@@ -47,7 +48,7 @@ st.markdown(
 )
 
 # Abbildung der CSV-Kategorien auf deutsche Anzeigenamen.
-# Interne englische Werte bleiben erhalten (Datensatz/Modell-Kompatibilitaet).
+# Interne englische Werte bleiben erhalten (Datensatz/Modell-Kompatibilität).
 SEVERITY_DE = {
     "Trivial Damage": "Bagatellschaden",
     "Minor Damage": "Leichter Schaden",
@@ -55,7 +56,7 @@ SEVERITY_DE = {
     "Total Loss": "Totalschaden",
 }
 
-# Durchschnittliche Schadenhoehe je Schwere (aus dem Datensatz abgeleitet).
+# Durchschnittliche Schadenhöhe je Schwere (aus dem Datensatz abgeleitet).
 # Dient als Basis für die regelbasierte Platzhalter-Prognose.
 BASE_AMOUNT = {
     "Trivial Damage": 5_000,
@@ -93,11 +94,11 @@ def load_dataset():
 def extract_features(text: str) -> dict:
     """Extrahiert strukturierte Merkmale aus einer deutschsprachigen
     Schadensmeldung. Liefert auch eine textbasierte Schwere-Einschaetzung,
-    die spaeter ggf. durch das Foto-Ergebnis überschrieben wird."""
+    die später ggf. durch das Foto-Ergebnis überschrieben wird."""
 
     text_lower = text.lower()
 
-    # --- Schadensschwere aus Schluesselwörtern (Fallback ohne Foto) ---
+    # --- Schadensschwere aus Schlüsselwörtern (Fallback ohne Foto) ---
     if any(w in text_lower for w in ["totalschaden", "total zerstört", "abgeschleppt"]):
         severity = "Total Loss"
     elif any(w in text_lower for w in ["erheblich", "schwer beschädigt", "großer schaden"]):
@@ -133,15 +134,15 @@ def extract_features(text: str) -> dict:
 # ---------------------------------------------------------------------
 def predict_severity_from_photo(uploaded_file) -> tuple[str, float] | None:
     """Speichert das hochgeladene Foto temporaer und ruft das CNN auf.
-    Gibt (interne Schwere-Kategorie, Wahrscheinlichkeit) zurueck oder None,
-    falls kein Modell verfuegbar ist."""
+    Gibt (interne Schwere-Kategorie, Wahrscheinlichkeit) zurück oder None,
+    falls kein Modell verfügbar ist."""
     # Lazy-Import: TensorFlow nur laden, wenn wirklich ein Foto kommt
     try:
         from src.cnn.predict_image import predict_severity, SEVERITY_DE as CNN_LABELS
     except Exception:
         return None
 
-    # Streamlit liefert die Datei im Speicher -> temporaer auf Platte schreiben,
+    # Streamlit liefert die Datei im Speicher -> temporär auf Platte schreiben,
     # da predict_severity einen Dateipfad erwartet.
     suffix = Path(uploaded_file.name).suffix or ".jpg"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -158,12 +159,12 @@ def predict_severity_from_photo(uploaded_file) -> tuple[str, float] | None:
 
 
 # ---------------------------------------------------------------------
-# 5) Vorhersage der Schadenhoehe — VORLAEUFIGER PLATZHALTER
+# 5) Prognose der Schadenhöhe — VORLAEUFIGER PLATZHALTER
 #    TODO: Durch das trainierte Regressionsmodell ersetzen.
 # ---------------------------------------------------------------------
 def predict_amount(features: dict) -> float:
-    """Schaetzt die Schadenhoehe (EUR) regelbasiert anhand der Schwere
-    sowie Zuschlaegen für beteiligte Fahrzeuge und Verletzte."""
+    """Schätzt die Schadenhöhe (EUR) regelbasiert anhand der Schwere
+    sowie Zuschlägen für beteiligte Fahrzeuge und Verletzte."""
     amount = BASE_AMOUNT[features["severity"]]
     amount += (features["vehicles"] - 1) * 4_000
     amount += features["injuries"] * 3_000
@@ -173,6 +174,57 @@ def predict_amount(features: dict) -> float:
 def format_eur(value: float) -> str:
     """Formatiert einen Betrag im deutschen Format (Punkt als Tausender)."""
     return f"{value:,.0f} EUR".replace(",", ".")
+
+
+# ---------------------------------------------------------------------
+# 5b) Eingaben und Prognose in der PostgreSQL-Datenbank speichern
+# ---------------------------------------------------------------------
+def save_prediction(message: str, features: dict, amount: float,
+                    severity_source: str) -> bool:
+    """Speichert die eingegebene Schadensmeldung samt extrahierten Merkmalen
+    und prognostizierter Schadenhöhe in der Tabelle `vorhersagen`.
+    Gibt True bei Erfolg zurück, False falls keine DB-Verbindung möglich ist."""
+    try:
+        from src.db.connection import get_engine
+        engine = get_engine()
+        with engine.begin() as conn:
+            # Tabelle bei Bedarf anlegen (macht das Dashboard unabhängig)
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS vorhersagen (
+                    vorhersage_id    SERIAL PRIMARY KEY,
+                    erstellt_am      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    meldung          TEXT,
+                    schadensschwere  VARCHAR(20),
+                    quelle_schwere   VARCHAR(10),
+                    anzahl_fahrzeuge INTEGER,
+                    anzahl_verletzte INTEGER,
+                    anzahl_zeugen    INTEGER,
+                    polizei          BOOLEAN,
+                    prognose_eur     NUMERIC(12,2)
+                )
+            """))
+            # Eingaben + Prognose als neue Zeile einfügen (parametrisiert -> kein SQL-Injection)
+            conn.execute(text("""
+                INSERT INTO vorhersagen
+                    (meldung, schadensschwere, quelle_schwere, anzahl_fahrzeuge,
+                     anzahl_verletzte, anzahl_zeugen, polizei, prognose_eur)
+                VALUES
+                    (:meldung, :schwere, :quelle, :fahrzeuge,
+                     :verletzte, :zeugen, :polizei, :prognose)
+            """), {
+                "meldung": message,
+                "schwere": features["severity"],
+                "quelle": severity_source,
+                "fahrzeuge": features["vehicles"],
+                "verletzte": features["injuries"],
+                "zeugen": features["witnesses"],
+                "polizei": features["police"],
+                "prognose": amount,
+            })
+        return True
+    except Exception:
+        # DB nicht erreichbar -> App bleibt nutzbar, nur ohne Speicherung
+        return False
 
 
 # =====================================================================
@@ -189,7 +241,7 @@ st.markdown(
                  0 1-2 0v-1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h1zm2.2 0h9.6l-1-3H8.2l-1
                  3zM6.5 15a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm11 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
       </svg>
-      <h1 style="margin:0; color:#1B1B1B;">KFZ-Schadenvorhersage</h1>
+      <h1 style="margin:0; color:#1B1B1B;">KFZ-Schadenprognose</h1>
     </div>
     """,
     unsafe_allow_html=True,
@@ -245,7 +297,7 @@ if st.button("Vorhersage erstellen", type="primary"):
         result = predict_severity_from_photo(photo)
         if result is not None:
             severity_photo, photo_confidence = result
-            # Foto hat Vorrang: es ueberschreibt die finale Schwere
+            # Foto hat Vorrang: es überschreibt die finale Schwere
             features["severity"] = severity_photo
         else:
             st.info("CNN-Modell nicht gefunden — es wird die Schwere aus dem Text verwendet.")
@@ -283,6 +335,13 @@ if st.button("Vorhersage erstellen", type="primary"):
                        "— ggf. genauere Prüfung erforderlich.")
 
         st.metric("Erwartete Schadenhöhe", format_eur(amount))
+
+    # --- Eingaben und Vorhersage in der Datenbank speichern ---
+    severity_source = "Foto" if severity_photo is not None else "Text"
+    if save_prediction(message, features, amount, severity_source):
+        st.success("Eingaben und Vorhersage wurden in der Datenbank gespeichert.")
+    else:
+        st.info("Hinweis: keine Datenbankverbindung — Ergebnis wurde nicht gespeichert.")
 
     # --- Visualisierung: Vorhersage vs. historische Durchschnitte ---
     df = load_dataset()
