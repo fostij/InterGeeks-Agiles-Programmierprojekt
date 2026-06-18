@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 import streamlit as st
 
 # Projektordner zum Pfad hinzufügen, damit das CNN-Modul importierbar ist
@@ -19,8 +19,31 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 # ---------------------------------------------------------------------
 st.set_page_config(
     page_title="KFZ-Schadenprognose",
-    page_icon="🚗",
-    layout="wide", 
+    page_icon="🛡️",
+    layout="wide",   # breites Layout für die zweispaltige Eingabe
+)
+
+# ---------------------------------------------------------------------
+# Eigenes Styling: grüner Farbverlauf-Hintergrund + sanfte Einblend-
+# Animation. Wird einmalig per CSS injiziert.
+# ---------------------------------------------------------------------
+st.markdown(
+    """
+    <style>
+    /* Sanfter grüner Verlauf als Hintergrund */
+    .stApp {
+        background: linear-gradient(135deg, #E8F5E9 0%, #FFFFFF 55%);
+        animation: fadeIn 0.8s ease-in;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    /* Abgerundete, weiche Karten-Optik fuer Tabellen und Bilder */
+    .stDataFrame, .stImage img { border-radius: 12px; }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
 # Abbildung der CSV-Kategorien auf deutsche Anzeigenamen.
@@ -70,11 +93,11 @@ def load_dataset():
 def extract_features(text: str) -> dict:
     """Extrahiert strukturierte Merkmale aus einer deutschsprachigen
     Schadensmeldung. Liefert auch eine textbasierte Schwere-Einschaetzung,
-    die spaeter ggf. durch das Foto-Ergebnis ueberschrieben wird."""
+    die spaeter ggf. durch das Foto-Ergebnis überschrieben wird."""
 
     text_lower = text.lower()
 
-    # --- Schadensschwere aus Schluesselwoertern (Fallback ohne Foto) ---
+    # --- Schadensschwere aus Schluesselwörtern (Fallback ohne Foto) ---
     if any(w in text_lower for w in ["totalschaden", "total zerstört", "abgeschleppt"]):
         severity = "Total Loss"
     elif any(w in text_lower for w in ["erheblich", "schwer beschädigt", "großer schaden"]):
@@ -84,7 +107,7 @@ def extract_features(text: str) -> dict:
     else:
         severity = "Minor Damage"
 
-    # --- Zahlenbasierte Merkmale per regulaerem Ausdruck ---
+    # --- Zahlenbasierte Merkmale per regulärem Ausdruck ---
     m = re.search(r"(\d+)\s*fahrzeug", text_lower)
     vehicles = int(m.group(1)) if m else 1
 
@@ -97,7 +120,7 @@ def extract_features(text: str) -> dict:
     police = "polizei" in text_lower
 
     return {
-        "severity": severity, 
+        "severity": severity,
         "vehicles": vehicles,
         "injuries": injuries,
         "witnesses": witnesses,
@@ -128,18 +151,18 @@ def predict_severity_from_photo(uploaded_file) -> tuple[str, float] | None:
     label_de, confidence = predict_severity(tmp_path)
 
     # predict_severity liefert bereits einen deutschen Namen; wir brauchen
-    # zusätzlich die interne Kategorie -> ueber die Umkehrung der CNN-Map.
+    # zusätzlich die interne Kategorie -> über die Umkehrung der CNN-Map.
     cnn_class = next((k for k, v in CNN_LABELS.items() if v == label_de), None)
     severity = CNN_TO_SEVERITY.get(cnn_class, "Minor Damage")
     return severity, confidence
 
 
 # ---------------------------------------------------------------------
-# 5) Prognose der Schadenhoehe — VORLAEUFIGER PLATZHALTER
+# 5) Vorhersage der Schadenhoehe — VORLAEUFIGER PLATZHALTER
 #    TODO: Durch das trainierte Regressionsmodell ersetzen.
 # ---------------------------------------------------------------------
 def predict_amount(features: dict) -> float:
-    """Schätzt die Schadenhoehe (EUR) regelbasiert anhand der Schwere
+    """Schaetzt die Schadenhoehe (EUR) regelbasiert anhand der Schwere
     sowie Zuschlaegen für beteiligte Fahrzeuge und Verletzte."""
     amount = BASE_AMOUNT[features["severity"]]
     amount += (features["vehicles"] - 1) * 4_000
@@ -153,12 +176,27 @@ def format_eur(value: float) -> str:
 
 
 # =====================================================================
-# 6) Benutzeroberflaeche
+# 6) Benutzeroberfläche
 # =====================================================================
-st.title("🚗 KFZ-Schadenprognose")
+# Kopfzeile mit grünem Auto-Icon (Inline-SVG) statt rotem Emoji
+st.markdown(
+    """
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:4px;">
+      <svg width="42" height="42" viewBox="0 0 24 24" fill="#4CAF50"
+           xmlns="http://www.w3.org/2000/svg">
+        <path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h1a1
+                 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-1v1a1 1 0 0 1-2 0v-1H7v1a1 1 0
+                 0 1-2 0v-1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h1zm2.2 0h9.6l-1-3H8.2l-1
+                 3zM6.5 15a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm11 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+      </svg>
+      <h1 style="margin:0; color:#1B1B1B;">KFZ-Schadenvorhersage</h1>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 st.caption(
     "Schadensmeldung beschreiben und optional ein Foto des Schadens hochladen. "
-    "Das System schätzt die Schadensschwere und die erwartete Schadenhoehe."
+    "Das System schätzt die Schadensschwere und die erwartete Schadenhöhe."
 )
 
 # --- Zweispaltige Eingabe: links Text, rechts Foto ---
@@ -187,8 +225,8 @@ with col_photo:
 
 st.divider()
 
-# --- Aktion: Prognose nur nach Klick ---
-if st.button("Prognose erstellen", type="primary"):
+# --- Aktion: Vorhersage nur nach Klick ---
+if st.button("Vorhersage erstellen", type="primary"):
 
     if not message.strip() and photo is None:
         st.warning("Bitte eine Schadensmeldung eingeben oder ein Foto hochladen.")
@@ -199,7 +237,7 @@ if st.button("Prognose erstellen", type="primary"):
         "severity": "Minor Damage", "vehicles": 1,
         "injuries": 0, "witnesses": 0, "police": False,
     }
-    severity_text = features["severity"]
+    severity_text = features["severity"]    # Schwere laut Text
 
     # --- Schwere aus dem Foto (CNN), falls vorhanden ---
     severity_photo, photo_confidence = None, None
@@ -207,12 +245,12 @@ if st.button("Prognose erstellen", type="primary"):
         result = predict_severity_from_photo(photo)
         if result is not None:
             severity_photo, photo_confidence = result
-            # Foto hat Vorrang: es überschreibt die finale Schwere
+            # Foto hat Vorrang: es ueberschreibt die finale Schwere
             features["severity"] = severity_photo
         else:
             st.info("CNN-Modell nicht gefunden — es wird die Schwere aus dem Text verwendet.")
 
-    # --- Prognose berechnen ---
+    # --- Vorhersage berechnen ---
     amount = predict_amount(features)
 
     # --- Ergebnisanzeige ---
@@ -246,22 +284,38 @@ if st.button("Prognose erstellen", type="primary"):
 
         st.metric("Erwartete Schadenhöhe", format_eur(amount))
 
-    # --- Visualisierung: Prognose vs. historische Durchschnitte ---
+    # --- Visualisierung: Vorhersage vs. historische Durchschnitte ---
     df = load_dataset()
     if df is not None:
         means = df.groupby("incident_severity")["total_claim_amount"].mean()
         labels_de = [SEVERITY_DE.get(s, s) for s in means.index]
 
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.bar(labels_de, means.values, color="#9aa7b1",
-               label="Durchschnitt (Datensatz)")
-        ax.axhline(amount, color="#c0392b", linewidth=2,
-                   label=f"Prognose: {format_eur(amount)}")
-        ax.set_ylabel("Schadenhöhe (EUR)")
-        ax.set_title("Prognose im Vergleich zu historischen Schadensfällen")
-        ax.legend()
-        plt.xticks(rotation=15)
-        st.pyplot(fig)
+        # Interaktives Balkendiagramm (Plotly) im grünen Farbschema.
+        # Balken: historische Durchschnittswerte; Linie: aktuelle Vorhersage.
+        fig = go.Figure()
+        fig.add_bar(
+            x=labels_de, y=means.values,
+            marker=dict(color=means.values, colorscale="Greens",
+                        line=dict(color="#2E7D32", width=1)),
+            name="Durchschnitt (Datensatz)",
+            hovertemplate="%{x}: %{y:,.0f} EUR<extra></extra>",
+        )
+        # Vorhersage als horizontale Referenzlinie
+        fig.add_hline(
+            y=amount, line_color="#1B5E20", line_width=3, line_dash="dash",
+            annotation_text=f"Vorhersage: {format_eur(amount)}",
+            annotation_position="top left",
+        )
+        fig.update_layout(
+            title="Vorhersage im Vergleich zu historischen Schadensfällen",
+            yaxis_title="Schadenhöhe (EUR)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(size=14),
+            showlegend=False,
+            margin=dict(t=60, b=40, l=60, r=20),
+        )
+        st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Datensatz nicht gefunden — Vergleichsdiagramm erscheint, "
                 "sobald data/raw/dataset.csv vorhanden ist.")
