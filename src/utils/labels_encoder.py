@@ -47,7 +47,6 @@ def prepare_pipeline_and_save_jsonl(count: int, output_file: str, dataset: pd.Da
             json_line = {
                 "text": text,
                 "labels": encoded_labels,
-                "target_price": sample.get("target_price", 0.0)
             }
             f.write(json.dumps(json_line, ensure_ascii=False) + "\n")
             

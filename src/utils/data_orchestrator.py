@@ -43,12 +43,10 @@ def get_descriptions_labels_with_new_vehicles(count: int, df: pd.DataFrame) -> L
         vehicle = (vehicle_row["make"], vehicle_row["model"], int(vehicle_row["year"]))
 
         description, labels = accident_data_generator.generate_with_labels_and_vehicles(row, vehicle)
-        target_price = float(row.get("vehicle_claim", 0.0))
 
         results.append({
             "text": description,
             "labels": labels,
-            "target_price": target_price
         })
 
     return results
