@@ -1,0 +1,11 @@
+# =====================================================================
+# Streamlit-Theme — Farbschema der Hochschule (grün)
+# Wirkt global: Buttons (primary), Akzente, Metriken etc.
+# Hex 4CAF50 bei Bedarf an die exakte HS-Farbe anpassen.
+# =====================================================================
+[theme]
+primaryColor = "#4CAF50"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#E8F5E9"
+textColor = "#1B1B1B"
+font = "sans serif"
