@@ -1,307 +1,164 @@
-Ок. Ниже единая нормальная документация всего пайплайна без раздувания по функциям.
+# Multi-Head Insurance Classifier — Documentation
 
 ---
 
-# German Insurance Multi-Head Training Pipeline
+## 1. Purpose
 
-## Overview
-
-This project implements a multi-task learning pipeline for insurance-related structured prediction over German-language text.
-
-The model jointly learns:
-
-* classification tasks (categorical insurance attributes)
-* regression tasks (numeric attributes)
-* optional target price regression
-
-The system is built around a shared Transformer encoder with multiple task-specific heads.
+A multi-head BERT-based model that reconstructs structured insurance claim fields from free-form German accident descriptions. The output table is intended as input for a downstream regression model predicting `vehicle_claim`.
 
 ---
 
-## Data pipeline
+## 2. Input Data
 
-### Input data format
+**Training:** JSONL file where each line contains:
+- `text` — generated German accident description
+- `labels` — dict of encoded field values (`-100` = field absent from text)
 
-Raw dataset is a pandas DataFrame used to generate training samples.
+**Inference:** One or more raw German text strings (user-written or generated).
 
-Each sample is converted into:
+**Label encoding:** All fields are classification. Integer class indices are produced by `LabelEncoder` per field. Absent fields are encoded as `None` → stored as `-100` (ignored by `CrossEntropyLoss`).
 
-```json id="1q9xq3"
-{
-  "text": "insurance description text",
-  "labels": {
-    "field_1": "value",
-    "field_2": 3,
-    ...
-  },
-  "target_price": 123.45
-}
+---
+
+## 3. Output Data
+
+**Training:** PyTorch checkpoint (`.pt`) containing:
+- `model_state_dict`
+- `network_config` — field names + number of classes per head
+- `label_encoders` — `{field: [class_0, class_1, ...]}` for decoding
+- `epoch`, `loss`
+
+**Inference:** `pd.DataFrame` with one row per input text. Each column is a predicted field value (decoded to original string/int). Fields where model confidence < `clf_threshold` are returned as `None`.
+
+---
+
+## 4. Architecture
+
+Base model: `uklfr/gottbert-base` (German RoBERTa).
+
+Pooling: mean pooling over token embeddings weighted by attention mask.
+
+Each field has an independent head:
+```
+Linear(hidden, hidden//2) → GELU → Dropout → Linear(hidden//2, num_classes)
 ```
 
----
-
-### Preprocessing
-
-The pipeline performs:
-
-#### 1. Sample generation
-
-A subset of rows is converted into natural language training examples with labels.
-
-#### 2. Label encoding
-
-Each field is processed based on its type:
-
-### Classification fields
-
-* Extract unique values from dataset
-* Add explicit `"None"` class
-* Encode using `LabelEncoder`
-
-Result:
-
-* integer class IDs
-* fixed vocabulary per field
-
-### Regression fields
-
-* values are kept as raw floats
-* no encoding at this stage
+All heads share the same BERT encoder.
 
 ---
 
-### Output dataset format (JSONL)
+## 5. Training
 
-Training data is stored as line-delimited JSON:
+| Parameter | Default | Notes |
+|-----------|---------|-------|
+| `batch_size` | 16 | Use ≥16 for stable gradients across 14 heads |
+| `lr` | 2e-5 | Standard for BERT fine-tuning |
+| `epochs` | 15 | With linear warmup scheduler |
+| `max_grad_norm` | 1.0 | Gradient clipping |
+| `train_split` | 0.85 | Train/val split |
+| `dataset_count` | 5000+ | Minimum recommended |
+| `warmup_steps` | 10% of total | Linear warmup then linear decay |
 
-```json id="8h7q2x"
-{
-  "text": "...",
-  "labels": {
-    "field_1": 2,
-    "field_2": 0
-  },
-  "target_price": 99.0
-}
+**Loss:** `CrossEntropyLoss(ignore_index=-100)` per head, summed with per-field weights (`loss_weight` in `network_config`, default 1.0).
+
+**Optimizer:** AdamW with `weight_decay=0.01`.
+
+**Checkpoint:** saved when `partial_score` improves.
+
+---
+
+## 6. Metrics
+
+Computed on validation set after each epoch.
+
+| Metric | Description |
+|--------|-------------|
+| `val_loss` | Weighted sum of per-field cross-entropy losses |
+| `accuracy` per field | Fraction of correctly predicted classes (masked) |
+| `exact_match` | Fraction of samples where ALL fields are correct |
+| `partial_score` | Average fraction of correct fields per sample |
+
+Fields with label `-100` are excluded from all metric computations.
+
+---
+
+## 7. Exact Match
+
+A sample counts as exact match only if every present field is predicted correctly.
+
+```
+exact_match = |{samples where all fields correct}| / |{samples with ≥1 field}|
 ```
 
+Strict metric — useful for tracking overall reconstruction quality. Typically lower than partial score.
+
 ---
 
-### Network configuration
+## 8. Partial Score
 
-During preprocessing, a `network_config` is generated:
+Per-sample fraction of correctly predicted fields, averaged over all samples:
 
-```python id="k3v9pl"
-{
-  "field_name": {
-    "type": "classification" | "regression",
-    "size": int
-  }
-}
+```
+partial_score = mean over samples( correct_fields / total_present_fields )
 ```
 
-This config defines:
-
-* number of output neurons per head
-* task type per field
-
-It is used consistently across:
-
-* model architecture
-* loss computation
-* evaluation logic
+More informative than exact match during early training. Used as the primary checkpoint criterion.
 
 ---
 
-## Model architecture
+## 9. Error Analysis
 
-### Encoder
+`ErrorAnalyzer` collects misclassified samples during evaluation and prints the top-N errors per field:
 
-* Transformer backbone (`AutoModel`, e.g. GottBERT)
-* masked mean pooling over token embeddings
-
-### Multi-head output
-
-For each field:
-
-* separate linear layer (task-specific head)
-
-Output:
-
-```python id="m2x8aa"
-{
-  field_1: logits or regression value,
-  field_2: logits or regression value
-}
+```
+===== ERROR ANALYSIS =====
+[incident_severity] — 12 misclassified
+  pred=2  true=0
+  pred=1  true=3
 ```
 
----
-
-## Training objective
-
-The model is trained using a dynamic multi-task loss.
-
-### Classification
-
-* CrossEntropyLoss
-
-### Regression
-
-* MSELoss with masking
-* missing values encoded as `-100`
-
-Loss is computed per field and summed:
-
-```text id="p7q1kd"
-total_loss = sum(field_losses)
-```
+Useful for identifying which fields the model struggles with and whether errors are systematic (e.g. always confusing two adjacent classes).
 
 ---
 
-## Evaluation system
+## 10. Usage
 
-The evaluation module supports multi-level analysis:
-
-### Per-field metrics
-
-* Accuracy (classification)
-* MAE (regression)
-
-### Global metrics
-
-* Exact match (all fields correct simultaneously)
-* Partial score (fraction of correctly predicted fields per sample)
-* Validation loss
-
----
-
-### Masking logic
-
-Missing labels are represented as:
-
-```text id="mask"
--100
-```
-
-These values are excluded from:
-
-* loss computation
-* metric calculation
-
----
-
-## Training process
-
-### Pipeline flow
-
-1. Load raw dataset
-2. Build label encoders + network config
-3. Generate JSONL training dataset
-4. Create Dataset + DataLoader
-5. Initialize model, loss, optimizer
-6. Train epoch loop
-7. Validate after each epoch
-
----
-
-### Optimization details
-
-* Optimizer: AdamW
-* Gradient clipping (stability control)
-* Train/validation split
-* Mixed task optimization (classification + regression)
-
----
-
-## Checkpointing
-
-The system tracks the best model based on a selected metric:
-
-* partial_score (default)
-* exact_match
-* validation loss
-
-Saved checkpoint includes:
-
-* model weights
-* optimizer state
-* epoch
-* network config
-* numeric statistics
-
----
-
-## Outputs
-
-After training:
-
-* best model checkpoint
-* final checkpoint
-* training history (CSV)
-* evaluation report per field
-
----
-
-## Key design characteristics
-
-* Multi-task learning (shared encoder, separate heads)
-* Dynamic architecture from dataset (`network_config`)
-* Hybrid targets (classification + regression)
-* Masked learning for missing labels
-* Consistent encoding pipeline
-* Structured evaluation beyond simple accuracy
-
----
-
-## Pipeline summary
-
-```text id="flow"
-Raw DataFrame
-   ↓
-Preprocessing + encoding
-   ↓
-JSONL dataset + network_config
-   ↓
-Dataset + DataLoader
-   ↓
-Transformer encoder
-   ↓
-Multi-head outputs
-   ↓
-Multi-task loss
-   ↓
-Evaluation (exact / partial / per-field metrics)
-   ↓
-Best checkpoint saved
-```
-
----
-
-To start training, you need to create a `TrainConfig` instance with the required file paths and parameters, and then pass it to `run_training`.
-
-Example:
-
+**Training:**
 ```python
-from src.models.multi_head_insurance.train import TrainConfig, run_training
-from ml_config import BEST_CHECKPOINT, DATASET_PATH, NETWORK_CONFIG_PATH, INPUT_FILE, OUTPUT_CHECKPOINT
+from src.models.multi_head_insurance.interface import train
+from src.models.multi_head_insurance.train import TrainConfig
 
 cfg = TrainConfig(
-   dataset_path=DATASET_PATH,
-   input_file=INPUT_FILE,
-   network_config_path=NETWORK_CONFIG_PATH,
-   output_checkpoint=OUTPUT_CHECKPOINT,
-   best_checkpoint=BEST_CHECKPOINT,
-   epochs=3,
-   dataset_count=1000,
+    dataset_count=5000,
+    batch_size=16,
+    epochs=15,
+    dataset_path="data/dataset.jsonl",
+    network_config_path="data/network_config.json",
+    output_checkpoint="checkpoints/last.pt",
+    best_checkpoint="checkpoints/best.pt",
 )
-run_training(cfg)
+train(cfg)
 ```
 
-This initializes the training pipeline with:
+**Inference:**
+```python
+from src.models.multi_head_insurance.interface import predict
 
-* dataset location
-* network configuration path
-* checkpoint outputs
-* training hyperparameters
+df = predict(
+    "Ich war mit meinem Ford Escape unterwegs. Ein anderes Fahrzeug fuhr von hinten auf.",
+    "Mein BMW wurde bei starkem Regen seitlich gerammt.",
+)
+df.to_csv("reconstructed_table.csv", index=False)
+```
 
-and then starts the full training process.
+**Confidence threshold:** `clf_threshold=0.6` by default. Lower it if too many `None` values appear; raise it if incorrect predictions are common. Inspect per-field confidence distribution on the validation set to calibrate.
+
+---
+
+## 11. Limitations
+
+- **Unseen vehicle makes/models:** handled by generating training data from a vehicle catalog. New makes not in training data will be misclassified.
+- **Absent fields → None:** when a field is not mentioned in the text and model confidence is below threshold, the field is `None`.
+- **Year in text:** `auto_year` is a classification head over known years. Years outside the training distribution will map to the nearest known class.
+- **Language:** model is trained on German text only. English or mixed-language input will degrade performance significantly.
+- **Text length:** inputs are truncated to `max_len=256` tokens. Very long descriptions may lose tail information.
