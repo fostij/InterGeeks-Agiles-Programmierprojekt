@@ -1,13 +1,17 @@
+
 from pathlib import Path
 
-INSURANCE_DATASET_PATH = Path("data/raw/dataset.csv")
+
+INSURANCE_DATASET_PATH = Path("data/output/dataset.csv")
+BEST_CHECKPOINT_PATH = Path("data/output/best_checkpoint.pt")
+
+
 VEHICLE_DATASET_PATH = Path("data/raw/vehicle_dataset.csv")
 CLEANED_DATA_OUTPUT_PATH = Path("data/output/dataset_prepared.csv")
 CLEANUP_LOG_FILE_PATH = Path("data/output/dataset_cleanup_report.txt")
 MULTI_HEAD_DATASET_PATH = Path("data/output/output.jsonl")
 NETWORK_CONFIG_PATH = Path("network_config.json")
 OUTPUT_CHECKPOINT_PATH = Path("data/output/last_checkpoint.pt")
-BEST_CHECKPOINT_PATH = Path("data/output/best_checkpoint.pt")
 
 VALID_CASE_TYPES = {
     "Front Collision",
@@ -17,7 +21,6 @@ VALID_CASE_TYPES = {
     "Vehicle Theft",
 }
 
-# 1. Keep TARGET_FIELDS for your 14 multi-head attributes
 TARGET_FIELDS = [
         "auto_year", 
         "auto_make", 
@@ -44,13 +47,10 @@ FIELDS_TO_DELETE = [
     "authorities_contacted", 
 ]
 
-# 3. Define your explicit final target
 PREDICTION_FIELD = "vehicle_claim"
 
 INTEGER_FIELDS = ["auto_year", "witnesses", "number_of_vehicles_involved", "bodily_injuries"]
 NUMERIC_FIELDS = []
 CATEGORICAL_FIELDS = [f for f in TARGET_FIELDS if f not in NUMERIC_FIELDS]
 
-# 5. Add this helper line at the bottom so your dataset cleaner/loader
-# knows to normalize the financial Euro amounts during preprocessing!
 REGRESSION_TARGETS = NUMERIC_FIELDS + [PREDICTION_FIELD]
