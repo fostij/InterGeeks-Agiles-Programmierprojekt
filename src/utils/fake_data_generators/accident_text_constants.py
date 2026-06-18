@@ -1,3 +1,30 @@
+DETAILS_TOTAL_LOSS = [
+    "das Fahrzeug ist nicht mehr fahrbereit",
+    "der tragende Karosserierahmen ist deformiert",
+    "die Karosseriegeometrie ist verzogen",
+    "Teile der A-Säule sind zerstört",
+    "das Fahrzeug wurde als Totalschaden eingestuft",
+    "eine Reparatur ist wirtschaftlich nicht sinnvoll",
+]
+
+DETAILS_TRIVIAL = [
+    "kleiner Kratzer an der Stoßstange",
+    "minimale Delle ohne Lackschaden",
+    "leichte Schramme an der Türkante",
+    "oberflächlicher Lackkratzer",
+]
+
+TOTAL_LOSS_AIRBAGS = [
+    "Die Airbags haben ausgelöst.",
+    "Alle Frontairbags wurden aktiviert.",
+    "Seitenairbags und Frontairbags wurden ausgelöst.",
+]
+
+TRIVIAL_AIRBAGS = [
+    "Die Airbags wurden nicht aktiviert.",
+    "Keine Sicherheitssysteme wurden ausgelöst.",
+]
+
 DETAILS_MINOR = [
     "vorderer Stoßfänger gebrochen",
     "hinterer Stoßfänger beschädigt",
@@ -95,19 +122,55 @@ SPEED_DESCRIPTIONS = [
     "bei dichtem Verkehr",
 ]
 
-WITNESS_INFO = [
-    "",
-    "Am Unfallort waren Zeug:innen anwesend.",
-    "Der Unfallhergang wurde durch Augenzeug:innen bestaetigt.",
-    "Zeug:innen des Vorfalls wurden befragt.",
-]
+WITNESS_INFO_BY_COUNT = {
+    0: ["Es waren keine Zeugen anwesend.", "Der Unfall ereignete sich ohne Zeugen."],
+    1: ["Ein Zeuge war anwesend.", "Der Vorfall wurde von einer Person beobachtet."],
+    2: ["Zwei Zeugen waren vor Ort.", "Es gab zwei Augenzeugen."],
+    3: ["Drei Zeugen haben den Vorfall beobachtet.", "Drei Personen bezeugen den Hergang."],
+}
 
-POLICE_INFO = [
-    "",
-    "Die Polizei wurde zum Unfallort gerufen.",
-    "Der Unfall wurde durch die Polizei aufgenommen.",
-    "Der Vorfall ist bei der Verkehrspolizei registriert.",
-]
+BODILY_INJURIES_INFO = {
+    0: [
+        "Es wurden keine Personen verletzt.",
+        "Alle Beteiligten blieben unverletzt.",
+        "Es gab keine Verletzten.",
+    ],
+    1: [
+        "Eine Person wurde verletzt.",
+        "Der Fahrer erlitt leichte Verletzungen.",
+        "Es gab einen Verletzten.",
+    ],
+    2: [
+        "Zwei Personen wurden verletzt.",
+        "Beide Fahrzeuginsassen erlitten Verletzungen.",
+        "Es gab zwei Verletzte.",
+    ],
+}
+
+PROPERTY_DAMAGE_INFO = {
+    "YES": [
+        "Es entstand auch Sachschaden an Fremdbesitz.",
+        "Fremdeigentum wurde beschädigt.",
+        "Es kam zu Sachschäden an Drittbesitz.",
+    ],
+    "NO": [
+        "Es wurde kein Fremdbesitz beschädigt.",
+        "Sachschäden an Dritten sind nicht entstanden.",
+    ],
+}
+
+POLICE_REPORT_INFO = {
+    "YES": [
+        "Ein Polizeibericht liegt vor.",
+        "Der Unfall wurde polizeilich aufgenommen.",
+        "Es existiert ein offizieller Polizeibericht.",
+    ],
+    "NO": [
+        "Es wurde kein Polizeibericht erstellt.",
+        "Die Polizei wurde nicht hinzugezogen.",
+        "Ein Polizeibericht liegt nicht vor.",
+    ],
+}
 
 TOW_INFO = [
     "",
@@ -534,18 +597,27 @@ YEAR_STANDALONE_TEMPLATES = [
 
 # ─────────────────────────────────────────────────────────────────────────────
 
-MAJOR_SEVERITIES = {"Major Damage", "Total Loss"}
+SEVERITY_BUCKET_MAP = {
+    "Total Loss": "total_loss",
+    "Major Damage": "major",
+    "Minor Damage": "minor",
+    "Trivial Damage": "trivial",
+}
 
 CASE_CONFIG = {
     "Front Collision": {
         "incident_phrases": FRONT_COLLISION_TEMPLATES,
         "damage": {
-            "major": {"pool": DETAILS_MAJOR + DETAILS_MINOR, "count": (3, 5)},
-            "minor": {"pool": DETAILS_MINOR, "count": (2, 4)},
+            "total_loss": {"pool": DETAILS_TOTAL_LOSS + DETAILS_MAJOR, "count": (4, 6)},
+            "major":      {"pool": DETAILS_MAJOR + DETAILS_MINOR,      "count": (3, 5)},
+            "minor":      {"pool": DETAILS_MINOR,                       "count": (2, 4)},
+            "trivial":    {"pool": DETAILS_TRIVIAL + DETAILS_MINOR,     "count": (1, 2)},
         },
         "airbags": {
-            "major": MAJOR_AIRBAGS,
-            "minor": MINOR_AIRBAGS,
+            "total_loss": TOTAL_LOSS_AIRBAGS,
+            "major":      MAJOR_AIRBAGS,
+            "minor":      MINOR_AIRBAGS,
+            "trivial":    TRIVIAL_AIRBAGS,
         },
         "templates": {
             "minimal": TEMPLATES_COLLISION_MINIMAL,
@@ -557,12 +629,16 @@ CASE_CONFIG = {
     "Rear Collision": {
         "incident_phrases": REAR_COLLISION_TEMPLATES,
         "damage": {
-            "major": {"pool": DETAILS_MAJOR + DETAILS_MINOR, "count": (3, 5)},
-            "minor": {"pool": DETAILS_MINOR, "count": (2, 4)},
+            "total_loss": {"pool": DETAILS_TOTAL_LOSS + DETAILS_MAJOR, "count": (4, 6)},
+            "major":      {"pool": DETAILS_MAJOR + DETAILS_MINOR,      "count": (3, 5)},
+            "minor":      {"pool": DETAILS_MINOR,                       "count": (2, 4)},
+            "trivial":    {"pool": DETAILS_TRIVIAL + DETAILS_MINOR,     "count": (1, 2)},
         },
         "airbags": {
-            "major": MAJOR_AIRBAGS,
-            "minor": MINOR_AIRBAGS,
+            "total_loss": TOTAL_LOSS_AIRBAGS,
+            "major":      MAJOR_AIRBAGS,
+            "minor":      MINOR_AIRBAGS,
+            "trivial":    TRIVIAL_AIRBAGS,
         },
         "templates": {
             "minimal": TEMPLATES_COLLISION_MINIMAL,
@@ -574,12 +650,16 @@ CASE_CONFIG = {
     "Side Collision": {
         "incident_phrases": SIDE_COLLISION_TEMPLATES,
         "damage": {
-            "major": {"pool": DETAILS_MAJOR + DETAILS_MINOR, "count": (3, 5)},
-            "minor": {"pool": DETAILS_MINOR, "count": (2, 4)},
+            "total_loss": {"pool": DETAILS_TOTAL_LOSS + DETAILS_MAJOR, "count": (4, 6)},
+            "major":      {"pool": DETAILS_MAJOR + DETAILS_MINOR,      "count": (3, 5)},
+            "minor":      {"pool": DETAILS_MINOR,                       "count": (2, 4)},
+            "trivial":    {"pool": DETAILS_TRIVIAL + DETAILS_MINOR,     "count": (1, 2)},
         },
         "airbags": {
-            "major": MAJOR_AIRBAGS,
-            "minor": MINOR_AIRBAGS,
+            "total_loss": TOTAL_LOSS_AIRBAGS,
+            "major":      MAJOR_AIRBAGS,
+            "minor":      MINOR_AIRBAGS,
+            "trivial":    TRIVIAL_AIRBAGS,
         },
         "templates": {
             "minimal": TEMPLATES_COLLISION_MINIMAL,
@@ -591,12 +671,16 @@ CASE_CONFIG = {
     "Parked Car": {
         "incident_phrases": PARKED_CAR_TEMPLATES,
         "damage": {
-            "major": {"pool": DETAILS_MINOR, "count": (2, 4)},
-            "minor": {"pool": DETAILS_MINOR, "count": (2, 4)},
+            "total_loss": {"pool": DETAILS_TOTAL_LOSS + DETAILS_MAJOR, "count": (4, 6)},
+            "major":      {"pool": DETAILS_MAJOR + DETAILS_MINOR,      "count": (3, 5)},
+            "minor":      {"pool": DETAILS_MINOR,                       "count": (2, 4)},
+            "trivial":    {"pool": DETAILS_TRIVIAL + DETAILS_MINOR,     "count": (1, 2)},
         },
         "airbags": {
-            "major": PARKED_AIRBAGS,
-            "minor": PARKED_AIRBAGS,
+            "total_loss": TOTAL_LOSS_AIRBAGS,
+            "major":      MAJOR_AIRBAGS,
+            "minor":      MINOR_AIRBAGS,
+            "trivial":    TRIVIAL_AIRBAGS,
         },
         "templates": {
             "minimal": TEMPLATES_PARKED_MINIMAL,
