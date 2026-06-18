@@ -24,18 +24,18 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 from src.db.connection import get_engine
 
 # Pfade zentral definieren
-CSV_PFAD = Path("data/raw/dataset.csv")
-SCHEMA_PFAD = Path("sql/schema.sql")
+CSV_PATH    = Path("data/raw/dataset.csv")
+SCHEMA_PATH = Path("sql/schema.sql")
 
 
-def extrahiere() -> pd.DataFrame:
+def extract() -> pd.DataFrame:
     """Schritt 1 (EXTRACT): Roh-CSV einlesen."""
-    df = pd.read_csv(CSV_PFAD)
+    df = pd.read_csv(CSV_PATH)
     print(f"[EXTRACT]   {len(df)} Zeilen, {df.shape[1]} Spalten eingelesen")
     return df
 
 
-def transformiere(df: pd.DataFrame) -> pd.DataFrame:
+def transform(df: pd.DataFrame) -> pd.DataFrame:
     """Schritt 2 (TRANSFORM): Datenbereinigung.
     Alle Entscheidungen hier sind Ergebnis der Datenqualitätsprüfung
     (siehe docs/datensatzbeschreibung.md)."""
@@ -64,13 +64,13 @@ def transformiere(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def lade(df: pd.DataFrame) -> None:
+def load(df: pd.DataFrame) -> None:
     """Schritt 3 (LOAD): Schema anlegen und die 5 Tabellen befüllen."""
     engine = get_engine()
 
     # --- 3.1 Schema ausführen (legt alle Tabellen neu an) ---
     with engine.begin() as conn:                      # begin() = mit Transaktion
-        conn.execute(text(SCHEMA_PFAD.read_text()))
+        conn.execute(text(SCHEMA_PATH.read_text()))
     print("[LOAD]      Schema angelegt (5 Tabellen)")
 
     # --- 3.2 Flache Tabelle in die normalisierten Tabellen aufteilen ---
@@ -95,14 +95,14 @@ def lade(df: pd.DataFrame) -> None:
         "policy_csl": "deckungsgrenze", "policy_deductable": "selbstbeteiligung",
         "policy_annual_premium": "jahrespraemie",
     })
-    policen["kunde_id"] = df["lfd_id"] # Fremdschlüssel Kunde -> Police
+    policen["kunde_id"] = df["lfd_id"]        # Fremdschlüssel Kunde -> Police
 
     fahrzeuge = df[["lfd_id", "auto_make", "auto_model", "auto_year"]].rename(
         columns={"auto_make": "marke", "auto_model": "modell",
                  "auto_year": "baujahr"})
     fahrzeuge = fahrzeuge.rename(columns={"lfd_id": "police_id"})  # FK Police
 
-    unfälle = df[["lfd_id", "incident_date", "incident_type", "collision_type",
+    unfaelle = df[["lfd_id", "incident_date", "incident_type", "collision_type",
                    "incident_severity", "authorities_contacted", "incident_state",
                    "incident_city", "incident_location", "incident_hour_of_the_day",
                    "number_of_vehicles_involved", "property_damage",
@@ -119,7 +119,7 @@ def lade(df: pd.DataFrame) -> None:
         "bodily_injuries": "anzahl_verletzte", "witnesses": "anzahl_zeugen",
         "police_report_available": "polizeibericht",
     })
-    unfälle["police_id"] = df["lfd_id"]      # Fremdschlüssel Police -> Unfall
+    unfaelle["police_id"] = df["lfd_id"]      # Fremdschlüssel Police -> Unfall
 
     schaeden = df[["lfd_id", "total_claim_amount", "injury_claim",
                    "property_claim", "vehicle_claim", "fraud_reported"]].rename(
@@ -131,19 +131,19 @@ def lade(df: pd.DataFrame) -> None:
 
     # --- 3.3 Befüllen — Reihenfolge wegen Fremdschlüsseln wichtig! ---
     # (Eltern-Tabellen zuerst, sonst verletzen die FKs die Integrität)
-    for name, tabelle in [("kunden", kunden), ("policen", policen),
-                          ("fahrzeuge", fahrzeuge), ("unfaelle", unfälle),
+    for name, table in [("kunden", kunden), ("policen", policen),
+                          ("fahrzeuge", fahrzeuge), ("unfaelle", unfaelle),
                           ("schaeden", schaeden)]:
-        tabelle.to_sql(name, engine, if_exists="append", index=False)
-        print(f"[LOAD]      Tabelle '{name}': {len(tabelle)} Zeilen eingefügt")
+        table.to_sql(name, engine, if_exists="append", index=False)
+        print(f"[LOAD]      Tabelle '{name}': {len(table)} Zeilen eingefügt")
 
 
-def prüfe() -> None:
+def verify() -> None:
     """Abschließende Kontrolle: Zeilenzahlen und eine Beispiel-JOIN-Abfrage."""
     engine = get_engine()
     with engine.connect() as conn:
         # JOIN über alle 5 Tabellen als Funktionsnachweis der Schlüssel
-        ergebnis = conn.execute(text("""
+        result = conn.execute(text("""
             SELECT k.alter_jahre, f.marke, u.schadensschwere, s.gesamtschaden
             FROM schaeden s
             JOIN unfaelle  u ON u.unfall_id  = s.unfall_id
@@ -153,16 +153,16 @@ def prüfe() -> None:
             LIMIT 3
         """)).fetchall()
     print("[PRÜFUNG]   Beispiel-JOIN über alle Tabellen:")
-    for zeile in ergebnis:
-        print("           ", zeile)
+    for row in result:
+        print("           ", row)
 
 
 # ---------------------------------------------------------------------
 # Hauptprogramm: kompletter ETL-Lauf
 # ---------------------------------------------------------------------
 if __name__ == "__main__":
-    df = extrahiere()
-    df = transformiere(df)
-    lade(df)
-    prüfe()
+    df = extract()
+    df = transform(df)
+    load(df)
+    verify()
     print("\nFertig! Alle Daten liegen jetzt in PostgreSQL.")
