@@ -5,7 +5,6 @@ from transformers import AutoTokenizer
 
 class GermanInsuranceDataset(Dataset):
     def __init__(self, jsonl_path: str,
-                 numeric_stats: dict,
                  network_config,
                  tokenizer_name: str = "uklfr/gottbert-base", 
                  max_len: int = 256,
@@ -18,7 +17,6 @@ class GermanInsuranceDataset(Dataset):
         
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
         self.max_len = max_len
-        self.numeric_stats = numeric_stats
         self.network_config = network_config
         
     def __len__(self):
@@ -45,15 +43,6 @@ class GermanInsuranceDataset(Dataset):
         }
 
         for field, val in labels.items():
-            if self.network_config[field]["type"] == "regression":
-                if val == -100:
-                    item[f"label_{field}"] = torch.tensor(-100.0)
-                else:
-                    mean = self.numeric_stats[field]["mean"]
-                    std = self.numeric_stats[field]["std"]
-                    val = (val - mean) / std
-                    item[f"label_{field}"] = torch.tensor(val, dtype=torch.float32)
-            else:
-                item[f"label_{field}"] = torch.tensor(val, dtype=torch.long)
+            item[f"label_{field}"] = torch.tensor(val, dtype=torch.long)
 
         return item

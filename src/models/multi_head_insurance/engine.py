@@ -25,12 +25,16 @@ class ErrorAnalyzer:
 
         print("\n===== ERROR ANALYSIS =====")
         for field, errs in by_field.items():
-            print(f"\n[{field}] — {len(errs)} misclassified")
-            for e in errs[:top_n]:
+            all_pairs = []
+            for e in errs:
                 preds = e["pred"].tolist()
                 trues = e["true"].tolist()
                 for p, t in zip(preds, trues):
-                    print(f"  pred={p}  true={t}")
+                    all_pairs.append((p, t))
+
+            print(f"\n[{field}] — {len(all_pairs)} misclassified")
+            for p, t in all_pairs[:top_n]:  # ← top_n строк
+                print(f"  pred={p}  true={t}")
 
 class FieldEvaluator:
     def __init__(self, field_type):
@@ -40,57 +44,37 @@ class FieldEvaluator:
     def reset(self):
         self.correct = 0
         self.total = 0
-
-        self.mae_sum = 0
-        self.mae_count = 0
         
         self.pred_cache = deque(maxlen=1000)
         self.true_cache = deque(maxlen=1000)
 
     def update(self, pred, true, mask=None):
-        if self.field_type == "regression":
-            pred_val = pred.squeeze(-1)
-            diff = (pred_val - true).abs()
+        if mask is not None and mask.sum() == 0:
+            return
+        pred_cls = pred.argmax(-1)
 
-            if mask is not None:
-                if mask.sum() == 0:
-                    return
-                diff = diff[mask]
+        if mask is not None:
+            pred_cls = pred_cls[mask]
+            true = true[mask]
 
-            self.mae_sum += diff.sum().item()
-            self.mae_count += diff.numel()
+        self.correct += (pred_cls == true).sum().item()
+        self.total += true.numel()
 
-        else:
-            if mask is not None and mask.sum() == 0:
-                return
-            pred_cls = pred.argmax(-1)
-
-            if mask is not None:
-                pred_cls = pred_cls[mask]
-                true = true[mask]
-
-            self.correct += (pred_cls == true).sum().item()
-            self.total += true.numel()
-
-            wrong = pred_cls != true
-            if wrong.any():
-                    self.pred_cache.append(pred_cls[wrong].detach().cpu())
-                    self.true_cache.append(true[wrong].detach().cpu())
+        wrong = pred_cls != true
+        if wrong.any():
+            self.pred_cache.append(pred_cls[wrong].detach().cpu())
+            self.true_cache.append(true[wrong].detach().cpu())
 
     def compute(self):
-        return {
-            "acc": self.correct / max(self.total, 1),
-            "mae": self.mae_sum / max(self.mae_count, 1),
-        }
+        return self.correct / max(self.total, 1)
 
 class MultiHeadEvaluator:
-    def __init__(self, network_config, numeric_stats=None):
+    def __init__(self, network_config):
         self.fields = {
             k: FieldEvaluator(v["type"])
             for k, v in network_config.items()
         }
         self.error_analyzer = ErrorAnalyzer()
-        self.numeric_stats = numeric_stats or {}
         self.total_loss = 0.0
         self.total_count = 0
 
@@ -139,25 +123,6 @@ class MultiHeadEvaluator:
         for ev in self.fields.values():
             ev.reset()
 
-    def compute_denorm_mae(self, predictions, targets):
-        result = {}
-        for field, ev in self.fields.items():
-            if ev.field_type != "regression":
-                continue
-            pred = predictions[field].squeeze(-1)
-            true = targets[f"label_{field}"]
-            mask = (true != -100)
-            if mask.sum() == 0:
-                continue
-            
-            stats = self.numeric_stats.get(field, {})
-            mean, std = stats.get("mean", 0), stats.get("std", 1)
-            
-            pred_denorm = pred[mask] * std + mean
-            true_denorm = true[mask] * std + mean
-            result[field] = (pred_denorm - true_denorm).abs().mean().item()
-        return result
-
     def exact_match(self, predictions, targets, reg_rel_threshold=0.10):
         n = len(next(iter(targets.values())))
         ok = 0
@@ -170,34 +135,14 @@ class MultiHeadEvaluator:
             for field, ev in self.fields.items():
                 p = predictions[field][i]
                 t = targets[f"label_{field}"][i]
+                valid = (t != -100)
 
-                if ev.field_type == "regression":
-                    valid = (t != -100)
+                if valid.sum() == 0:
+                    continue
 
-                    if valid.sum() == 0:
-                        continue
-
-                    sample_has_fields = True
-
-                    stats = self.numeric_stats.get(field, {})
-                    mean, std = stats.get("mean", 0.0), stats.get("std", 1.0)
-
-                    p_v = p.squeeze(-1)[valid] * std + mean
-                    t_v = t[valid] * std + mean
-                    
-                    rel_err = (p_v - t_v).abs() / t_v.abs().clamp(min=1e-6)
-                    sample_match &= (rel_err < reg_rel_threshold).all().item()
-
-                else:
-                    valid = (t != -100)
-
-                    if valid.sum() == 0:
-                        continue
-
-                    sample_has_fields = True
-
-                    p_cls = p.argmax(-1)
-                    sample_match &= (p_cls[valid] == t[valid]).all().item()
+                sample_has_fields = True
+                p_cls = p.argmax(-1)
+                sample_match &= (p_cls[valid] == t[valid]).all().item()
 
                 if not sample_match:
                     break
@@ -210,48 +155,25 @@ class MultiHeadEvaluator:
     
     def partial_score(self, predictions, targets, reg_rel_threshold=0.10):
         n = len(next(iter(targets.values())))
-        clf_scores = []
-        reg_scores = []
+        scores = []
 
         for i in range(n):
-            clf_total, clf_correct = 0, 0
-            reg_total, reg_correct = 0, 0
+            total, correct = 0, 0
 
             for field, ev in self.fields.items():
                 p = predictions[field][i]
                 t = targets[f"label_{field}"][i]
+                valid = (t != -100)
 
-                if ev.field_type == "regression":
-                    t_valid = (t != -100)
-
-                    if t_valid.sum() == 0:
-                        continue
+                if valid.sum() == 0:
+                    continue
                     
-                    stats = self.numeric_stats.get(field, {})
-                    mean, std = stats.get("mean", 0.0), stats.get("std", 1.0)
-                    p_v = p.squeeze(-1)[t_valid] * std + mean
-                    t_v = t[t_valid] * std + mean
-                    rel_err = (p_v - t_v).abs() / (t_v.abs().clamp(min=1e-6))
-                    reg_correct += int((rel_err < reg_rel_threshold).all().item())
-                    reg_total += 1
-                else:
-                    t_valid = (t != -100)
+                correct += int((p.argmax(-1)[valid] == t[valid]).all().item())
+                total += 1
 
-                    if t_valid.sum() == 0:
-                        continue
-                    
-                    clf_correct += int((p.argmax(-1)[t_valid] == t[t_valid]).all().item())
-                    clf_total += 1
+            scores.append(correct / max(total, 1))
 
-            if clf_total > 0:
-                clf_scores.append(clf_correct / clf_total)
-            if reg_total > 0:
-                reg_scores.append(reg_correct / reg_total)
-
-        return {
-            "clf_partial": sum(clf_scores) / max(len(clf_scores), 1),
-            "reg_partial": sum(reg_scores) / max(len(reg_scores), 1),
-        }
+        return sum(scores) / max(len(scores), 1)
 
 def evaluate(model, dataloader, criterion, device, evaluator: MultiHeadEvaluator):
     model.eval()
@@ -289,25 +211,9 @@ def evaluate(model, dataloader, criterion, device, evaluator: MultiHeadEvaluator
     metrics = evaluator.compute()
     avg_loss = evaluator.total_loss / max(evaluator.total_count, 1)
 
-    denorm_mae = {}
-    for field, ev in evaluator.fields.items():
-        if ev.field_type != "regression":
-            continue
-        pred = all_predictions[field].squeeze(-1)
-        true = all_targets[f"label_{field}"]
-        mask = (true != -100)
-        if mask.sum() == 0:
-            continue
-        stats = evaluator.numeric_stats.get(field, {})
-        mean, std = stats.get("mean", 0.0), stats.get("std", 1.0)
-        pred_denorm = pred[mask] * std + mean
-        true_denorm = true[mask] * std + mean
-        denorm_mae[field] = (pred_denorm - true_denorm).abs().mean().item()
-
-    mae_dict = {f: v["mae"] for f, v in metrics.items()}
-    acc_dict = {f: v["acc"] for f, v in metrics.items()}
+    acc_dict = metrics
 
     exact = evaluator.exact_match(all_predictions, all_targets)
     partial = evaluator.partial_score(all_predictions, all_targets)
 
-    return avg_loss, loss_dict, mae_dict, acc_dict, exact, partial, denorm_mae
+    return avg_loss, loss_dict, acc_dict, exact, partial

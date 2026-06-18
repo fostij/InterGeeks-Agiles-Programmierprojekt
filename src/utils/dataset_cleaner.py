@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from src.ml_config import CLEANUP_LOG_FILE, TRASH_FIELDS
+from src.ml_config import CLEANUP_LOG_FILE_PATH, FIELDS_TO_DELETE
 
-def clean_dataset(dataframe: pd.DataFrame, log_path: Path = CLEANUP_LOG_FILE) -> pd.DataFrame:
+def clean_insurence_dataset(dataframe: pd.DataFrame, log_path: Path = CLEANUP_LOG_FILE_PATH) -> pd.DataFrame:
     cleaned = dataframe.copy()
     missing_markers = ["?", "NA", "N/A", "null", "None", ""]
     cleaned = cleaned.replace(missing_markers, np.nan)
@@ -39,7 +39,7 @@ def clean_dataset(dataframe: pd.DataFrame, log_path: Path = CLEANUP_LOG_FILE) ->
             else:
                 cleaned[col] = cleaned[col].fillna("Unknown")
 
-    drop_cols = TRASH_FIELDS
+    drop_cols = FIELDS_TO_DELETE
     cleaned = cleaned.drop(columns=[c for c in drop_cols if c in cleaned.columns])
     return cleaned
 
@@ -49,3 +49,9 @@ def fix_name_errors(dataframe: pd.DataFrame) -> pd.DataFrame:
         {"Accura": "Acura", "Suburu": "Subaru"}
         )
     return dataframe
+
+def clean_vehicle_dataset(dataframe: pd.DataFrame) -> pd.DataFrame:
+    return dataframe
+
+def shuffle_dataset(dataframe: pd.DataFrame, seed: int = None) -> pd.DataFrame:
+    return dataframe.sample(frac=1, random_state=seed).reset_index(drop=True)
