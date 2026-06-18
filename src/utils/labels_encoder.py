@@ -24,7 +24,7 @@ def prepare_pipeline_and_save_jsonl(count: int, output_file: str, dataset: pd.Da
             unique_values = list(set(unique_values))
         le = LabelEncoder()
         le.fit(unique_values)
-        #print(le.classes_)    
+
         label_encoders[field] = le
         network_config[field] = {
             "type": "classification",
