@@ -1,16 +1,7 @@
-# =====================================================================
+# ---------------------------------------------------------------------
 # connection.py — zentrale Datenbankverbindung (PostgreSQL)
 # ---------------------------------------------------------------------
-# Die Zugangsdaten liegen NICHT im Code, sondern in der Datei ".env"
-# im Projektordner (steht in .gitignore -> landet NIE auf GitHub!).
-#
-# Beispiel-Inhalt der .env-Datei:
-#   DB_USER=postgres
-#   DB_PASSWORD=geheim
-#   DB_HOST=localhost
-#   DB_PORT=5432
-#   DB_NAME=kfz_schaden
-# =====================================================================
+
 
 import os
 from dotenv import load_dotenv          # liest die .env-Datei ein

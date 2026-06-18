@@ -1,5 +1,3 @@
-from functools import partial
-
 import pandas as pd
 import json
 import torch
@@ -12,7 +10,6 @@ from src.models.multi_head_insurance.losses import DynamicMultiHeadLoss
 from src.models.multi_head_insurance.models import GermanInsuranceClassifier
 from src.models.multi_head_insurance.dataset import GermanInsuranceDataset
 from src.utils.labels_encoder import prepare_pipeline_and_save_jsonl
-from src.utils.descriptive_statistics import get_descriptive_statistics_for_numeric
 from src.models.multi_head_insurance.engine import MultiHeadEvaluator, evaluate
 from src.utils.data_orchestrator import get_cleaned_dataset
 
@@ -23,6 +20,9 @@ class TrainConfig:
     epochs: int = 1
     max_grad_norm: float = 1.0
     train_split: float = 0.8
+    val_split: float = 0.1
+    test_split: float = 0.1
+    split_seed: int = 42
     dataset_count: int = 1000
     model_name: str = "uklfr/gottbert-base"
 
@@ -51,11 +51,11 @@ class BestModelTracker:
             return value > self.best_value
         return value < self.best_value
 
-    def update(self, value: float, epoch: int, model, optimizer, cfg, num_stats) -> bool:
+    def update(self, value: float, epoch: int, model, optimizer, cfg) -> bool:
         if self.is_better(value):
             self.best_value = value
             self.best_epoch = epoch
-            save_checkpoint(cfg, model, optimizer, epoch, value, num_stats)
+            save_checkpoint(cfg, model, optimizer, epoch, value, path=self.output_checkpoint)
             print(f"  ✓ New best {self.metric}={value:.4f} — checkpoint saved")
             return True
         return False
@@ -66,7 +66,6 @@ class BestModelTracker:
 
 def get_device():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #device = "cpu"
     print(f"Using processing engine: {device}")
     return device
 
@@ -85,15 +84,33 @@ def build_save_set_network_config(cfg: TrainConfig, dataset: pd.DataFrame):
     return final_network_config, label_encoders
 
 def build_dataloaders(cfg: TrainConfig, dataset):
-    train_size = int(cfg.train_split * len(dataset))
-    val_size = len(dataset) - train_size
+    total = len(dataset)
+    split_sum = cfg.train_split + cfg.val_split + cfg.test_split
+    if abs(split_sum - 1.0) > 1e-8:
+        raise ValueError(f"train/val/test splits must sum to 1.0, got {split_sum}")
 
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+    train_size = int(cfg.train_split * total)
+    val_size = int(cfg.val_split * total)
+    test_size = total - train_size - val_size
+
+    if min(train_size, val_size, test_size) <= 0:
+        raise ValueError(
+            f"Invalid split sizes for dataset={total}: "
+            f"train={train_size}, val={val_size}, test={test_size}"
+        )
+
+    generator = torch.Generator().manual_seed(cfg.split_seed)
+    train_dataset, val_dataset, test_dataset = random_split(
+        dataset,
+        [train_size, val_size, test_size],
+        generator=generator,
+    )
 
     train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=cfg.batch_size, shuffle=False)
 
-    return train_loader, val_loader
+    return train_loader, val_loader, test_loader
 
 def build_model(cfg: TrainConfig, device):
     model = GermanInsuranceClassifier(model_name=cfg.model_name, network_config=cfg.network_config)
@@ -115,7 +132,12 @@ def train_step(batch, model, criterion, optimizer, scheduler, device, max_grad_n
         batch_targets[f"label_{field}"] = batch[f"label_{field}"].to(device)
                 
     predictions = model(input_ids, attention_mask)
-            
+    
+    for field, tensor in batch_targets.items():
+        max_val = tensor[tensor != -100].max().item() if (tensor != -100).any() else -1
+        num_classes = network_config[field.replace("label_", "")]["size"]
+        if max_val >= num_classes:
+            print(f"INVALID: {field} max={max_val} but size={num_classes}")
     loss, loss_dict = criterion(predictions, batch_targets)
             
     loss.backward()
@@ -139,58 +161,45 @@ def train_epoch(train_loader, model, criterion, optimizer, scheduler, device, ep
     
     return running_loss / len(train_loader)
 
-def evaluate_epoch(val_loader, model, criterion, device, epoch, evaluator: MultiHeadEvaluator):
-    avg_loss, loss_dict, mae_dict, acc_dict, exact, partial, denorm_mae = evaluate(
+def evaluate_epoch(loader, model, criterion, device, epoch, evaluator: MultiHeadEvaluator, split_name: str = "val"):
+    avg_loss, loss_dict, acc_dict, exact, partial = evaluate(
         model=model,
-        dataloader=val_loader,
+        dataloader=loader,
         criterion=criterion,
         device=device,
         evaluator=evaluator
     )
 
-    clf_p = partial.get("clf_partial", 0.0)
-    reg_p = partial.get("reg_partial", 0.0)
+    print(
+        f"\n📊 Epoch {epoch+1} | {split_name}_loss: {avg_loss:.4f} | "
+        f"exact: {exact:.4f} | partial: {partial:.4f}"
+    )
+    return avg_loss, loss_dict, acc_dict, exact, partial
 
-    print(f"\n📊 Epoch {epoch+1} | val_loss: {avg_loss:.4f} | exact: {exact:.4f} | clf_partial: {clf_p:.4f} | reg_partial: {reg_p:.4f}")
-
-    if denorm_mae:
-        print("   Denorm MAE:", {k: f"{v:.2f}" for k, v in denorm_mae.items()})
-
-    return avg_loss, loss_dict, mae_dict, acc_dict, exact, partial, denorm_mae
-
-def save_checkpoint(cfg, model, optimizer, epoch, loss, num_stats):
+def save_checkpoint(cfg, model, optimizer, epoch, loss, path=None):
     checkpoint = {
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
         "epoch": epoch,
         "loss": loss,
         "network_config": cfg.network_config,
-        "numeric_stats": num_stats,
         "label_encoders": {
             field: le.classes_.tolist()
             for field, le in cfg.label_encoders.items()
         }
     }
 
-    torch.save(checkpoint, cfg.output_checkpoint)
+    save_path = path or cfg.output_checkpoint
+    torch.save(checkpoint, save_path)
 
-def build_report(network_config, loss_dict, mae_dict, acc_dict, denorm_mae=None):
+def build_report(network_config, loss_dict, acc_dict):
     print("\n===== EVALUATION REPORT =====")
 
     report = []
 
     for field in network_config.keys():
         row = {"field": field}
-
-        if network_config[field]["type"] == "regression":
-            row["MAE_norm"] = mae_dict.get(field)
-            row["MAE_real"] = denorm_mae.get(field) if denorm_mae else None
-            row["accuracy"] = None
-        else:
-            row["MAE_norm"] = None
-            row["MAE_real"] = None
-            row["accuracy"] = acc_dict.get(field)
-
+        row["accuracy"] = acc_dict.get(field)
         row["loss"] = loss_dict.get(field, None)
 
         report.append(row)
@@ -204,12 +213,10 @@ def run_training(cfg: TrainConfig):
 
     dataset = get_cleaned_dataset()
     _ = build_save_set_network_config(cfg, dataset)
-    
-    num_stats = get_descriptive_statistics_for_numeric(dataset)
 
-    dataset = GermanInsuranceDataset(jsonl_path=cfg.dataset_path, numeric_stats=num_stats, network_config=cfg.network_config)
+    dataset = GermanInsuranceDataset(jsonl_path=cfg.dataset_path, network_config=cfg.network_config)
     
-    train_loader, val_loader = build_dataloaders(cfg, dataset)
+    train_loader, val_loader, test_loader = build_dataloaders(cfg, dataset)
 
     model, criterion, optimizer = build_model(cfg, device)
 
@@ -221,7 +228,7 @@ def run_training(cfg: TrainConfig):
     )
     print("\nTraining started")
     
-    evaluator = MultiHeadEvaluator(cfg.network_config, numeric_stats=num_stats)
+    evaluator = MultiHeadEvaluator(cfg.network_config)
 
     tracker = BestModelTracker(
         output_checkpoint=cfg.best_checkpoint,
@@ -234,46 +241,70 @@ def run_training(cfg: TrainConfig):
     for epoch in range(cfg.epochs):
         avg_loss = train_epoch(train_loader, model, criterion, optimizer, scheduler, device, epoch, cfg)
 
-        val_loss, loss_dict, mae_dict, acc_dict, exact, partial, denorm_mae = evaluate_epoch(val_loader, model, criterion, device, epoch, evaluator)
+        val_loss, loss_dict, acc_dict, exact, partial = evaluate_epoch(
+            val_loader,
+            model,
+            criterion,
+            device,
+            epoch,
+            evaluator,
+            split_name="val",
+        )
 
         row = {
             "epoch": epoch + 1,
             "train_loss": avg_loss,
             "val_loss": val_loss,
             "exact": exact,
-            "clf_partial": partial.get("clf_partial"),
-            "reg_partial": partial.get("reg_partial"),
+            "partial": partial,
         }
-
-        for field, value in denorm_mae.items():
-            row[f"{field}_denorm_mae"] = value
 
         for field, value in loss_dict.items():
             row[f"{field}_loss"] = value
-
-        for field, value in mae_dict.items():
-            row[f"{field}_mae"] = value
 
         for field, value in acc_dict.items():
             row[f"{field}_acc"] = value
 
         history.append(row)
 
-        report = build_report(cfg.network_config, loss_dict, mae_dict, acc_dict, denorm_mae)
+        report = build_report(cfg.network_config, loss_dict, acc_dict)
         print(report)
         evaluator.error_analyzer.report(top_n=3)
 
-        tracker_value = (partial["clf_partial"] + partial["reg_partial"]) / 2
         tracker.update(
-            value=tracker_value,
+            value=partial,
             epoch=epoch,
             model=model,
             optimizer=optimizer,
             cfg=cfg,
-            num_stats=num_stats
         )
 
     tracker.summary()
+
+    best_checkpoint = torch.load(cfg.best_checkpoint, map_location=device, weights_only=False)
+    model.load_state_dict(best_checkpoint["model_state_dict"])
+
+    test_loss, test_loss_dict, test_acc_dict, test_exact, test_partial = evaluate_epoch(
+        test_loader,
+        model,
+        criterion,
+        device,
+        cfg.epochs,
+        evaluator,
+        split_name="test",
+    )
+
+    if history:
+        history[-1]["test_loss"] = test_loss
+        history[-1]["test_exact"] = test_exact
+        history[-1]["test_partial"] = test_partial
+
+        for field, value in test_loss_dict.items():
+            history[-1][f"test_{field}_loss"] = value
+
+        for field, value in test_acc_dict.items():
+            history[-1][f"test_{field}_acc"] = value
+
     print(f"\n✓ Training completed. Best checkpoint saved to: {cfg.best_checkpoint}")
     pd.DataFrame(history).to_csv("training_history.csv", index=False)
     

@@ -5,14 +5,11 @@ from transformers import AutoTokenizer
 
 
 class GermanInsuranceDataset(Dataset):
-    def __init__(
-        self,
-        jsonl_path: str,
-        numeric_stats: dict,
-        network_config,
-        tokenizer_name: str = "uklfr/gottbert-base",
-        max_len: int = 256,
-    ):
+    def __init__(self, jsonl_path: str,
+                 network_config,
+                 tokenizer_name: str = "uklfr/gottbert-base", 
+                 max_len: int = 256,
+                 ):
         self.samples = []
         with open(jsonl_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -21,7 +18,6 @@ class GermanInsuranceDataset(Dataset):
 
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
         self.max_len = max_len
-        self.numeric_stats = numeric_stats
         self.network_config = network_config
 
     def __len__(self):
@@ -66,18 +62,6 @@ class GermanInsuranceDataset(Dataset):
 
         # Process your remaining 14 categorical and numeric targets
         for field, val in labels.items():
-            if field == "vehicle_claim":
-                continue
-
-            if self.network_config[field]["type"] == "regression":
-                if val == -100:
-                    item[f"label_{field}"] = torch.tensor(-100.0)
-                else:
-                    mean = self.numeric_stats[field]["mean"]
-                    std = self.numeric_stats[field]["std"]
-                    val = (val - mean) / std
-                    item[f"label_{field}"] = torch.tensor(val, dtype=torch.float32)
-            else:
-                item[f"label_{field}"] = torch.tensor(val, dtype=torch.long)
+            item[f"label_{field}"] = torch.tensor(val, dtype=torch.long)
 
         return item
