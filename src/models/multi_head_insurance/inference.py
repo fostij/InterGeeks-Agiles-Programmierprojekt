@@ -62,15 +62,15 @@ def predict(
         for i in range(len(texts)):
             if confidence[i].item() < clf_threshold:
                 rows[i][field] = None
-
             else:
                 idx = pred_idx[i].item()
                 value = encoder.get(idx, None)
 
                 if field in INTEGER_FIELDS:
-                    value = int(str(value)) if value is not None else None
+                    value = int(str(value))
 
                 rows[i][field] = value
+            print(field, confidence[i].item(), value)
 
     catalog = get_vehicle_dataset()
 
