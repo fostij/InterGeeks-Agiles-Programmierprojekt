@@ -33,7 +33,7 @@ def predict(
     clf_threshold: float = 0.6,
     max_len: int = 256,
     device = "cpu",
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
 
@@ -52,6 +52,7 @@ def predict(
         predictions = model(input_ids, attention_mask)
 
     rows = [{} for _ in texts]
+    conf_rows = [{} for _ in texts]
 
     for field, pred in predictions.items():
         probs = F.softmax(pred, dim=-1)
@@ -60,6 +61,9 @@ def predict(
         encoder = label_encoders.get(field, {})
 
         for i in range(len(texts)):
+            conf_value = confidence[i].item()
+            conf_rows[i][field] = conf_value
+
             if confidence[i].item() < clf_threshold:
                 rows[i][field] = None
             else:
@@ -70,7 +74,6 @@ def predict(
                     value = int(str(value))
 
                 rows[i][field] = value
-            print(field, confidence[i].item(), value)
 
     catalog = get_vehicle_dataset()
 
@@ -89,7 +92,8 @@ def predict(
         traceback.print_exc()
         sys.exit(1)
 
-    return df
+    conf_df = pd.DataFrame(conf_rows)
+    return df, conf_df
 
 def validate_vehicle_with(make: str, year: int, catalog: pd.DataFrame):
     match = catalog[

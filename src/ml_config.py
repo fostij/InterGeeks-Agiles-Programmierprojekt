@@ -9,6 +9,10 @@ NETWORK_CONFIG_PATH = Path("network_config.json")
 OUTPUT_CHECKPOINT_PATH = Path("data/output/last_checkpoint.pt")
 BEST_CHECKPOINT_PATH = Path("data/output/best_checkpoint.pt")
 
+MULTI_HEAD_MODEL_PATH = Path("checkpoints/multi_head_model.pt")
+CNN_MODEL_PATH = Path("checkpoints/cnn_model.keras")
+REGRESSION_MODEL_PATH = Path("checkpoints/regression_model.pkl")
+
 VALID_CASE_TYPES = {
     "Front Collision",
     "Parked Car",
