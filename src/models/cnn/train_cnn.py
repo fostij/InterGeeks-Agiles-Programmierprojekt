@@ -15,8 +15,8 @@ from tensorflow.keras.applications import MobileNetV2
 DATA_DIR     = Path("data/raw/car_damage")
 TRAIN_DIR    = DATA_DIR / "training" 
 VAL_DIR      = DATA_DIR / "validation" 
-MODEL_PATH   = Path("src/cnn/model.keras")
-CLASSES_PATH = Path("src/cnn/classes.json")
+MODEL_PATH   = Path("src/models/cnn/model.keras")
+CLASSES_PATH = Path("src/models/cnn/classes.json")
 IMAGE_SIZE   = (224, 224)
 BATCH_SIZE   = 32
 EPOCHS       = 10
@@ -24,10 +24,10 @@ SEED         = 42
 
 
 def load_datasets():
-    """Laedt Trainings- und Validierungsbilder aus den jeweils vorgegebenen
+    """Lädt Trainings- und Validierungsbilder aus den jeweils vorgegebenen
     Ordnern (training/ und validation/). Der Datensatz ist bereits geteilt,
     daher wird KEIN validation_split verwendet.
-    Gibt (train_ds, val_ds, class_names) zurueck."""
+    Gibt (train_ds, val_ds, class_names) zurück."""
 
     # Trainingsdaten aus dem Ordner training/ (Klassen = Unterordner)
     train_ds = tf.keras.utils.image_dataset_from_directory(
