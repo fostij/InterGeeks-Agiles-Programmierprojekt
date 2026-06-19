@@ -1,44 +1,61 @@
-import streamlit as st
+# ---------------------------------------------------------------------
+# dashboard.py — Web interface for damage prediction (Streamlit)
+# ---------------------------------------------------------------------
+
+import re
+import sys
+import tempfile
+from pathlib import Path
+
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
 from sqlalchemy import text
-from src.db.connection import get_engine
-from src.models.regression.predict_model import predict_damage
 
-# 1) Page Config
-st.set_page_config(page_title="KFZ-Schadenprognose Pro", layout="wide")
+# Projektordner zum Pfad hinzufügen, damit das CNN-Modul importierbar ist
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-# Styling
-st.markdown("""<style>.stApp {background: #f8f9fa;}</style>""", unsafe_allow_html=True)
+# ---------------------------------------------------------------------
+# 1) Seitenkonfiguration (muss der erste Streamlit-Befehl sein)
+# ---------------------------------------------------------------------
+st.set_page_config(
+    page_title="KFZ-Schadenprognose",
+    page_icon="🛡️",
+    layout="wide",
+)
 
-# 2) UI Components
-st.title("🛡️ KFZ-Schadenprognose Professional")
-st.markdown("---")
+# ---------------------------------------------------------------------
+# Eigenes Styling: grüner Farbverlauf-Hintergrund + sanfte Einblend-
+# Animation. Wird einmalig per CSS injiziert.
+# ---------------------------------------------------------------------
+st.markdown(
+    """
+    <style>
+    /* Sanfter grüner Verlauf als Hintergrund */
+    .stApp {
+        background: linear-gradient(135deg, #E8F5E9 0%, #FFFFFF 55%);
+        animation: fadeIn 0.8s ease-in;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    /* Abgerundete, weiche Karten-Optik fuer Tabellen und Bilder */
+    .stDataFrame, .stImage img { border-radius: 12px; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-col1, col2 = st.columns([1, 1])
+# Abbildung der CSV-Kategorien auf deutsche Anzeigenamen.
+# Interne englische Werte bleiben erhalten (Datensatz/Modell-Kompatibilität).
+SEVERITY_DE = {
+    "Trivial Damage": "Bagatellschaden",
+    "Minor Damage": "Leichter Schaden",
+    "Major Damage": "Erheblicher Schaden",
+    "Total Loss": "Totalschaden",
+}
 
-<<<<<<< HEAD
-with col1:
-    st.subheader("Unfall-Parameter")
-    message = st.text_area("Beschreibung des Schadens", height=150)
-    vehicles = st.number_input("Anzahl Fahrzeuge", min_value=1, value=1)
-    injuries = st.number_input("Anzahl Verletzte", min_value=0, value=0)
-    witnesses = st.number_input("Anzahl Zeugen", min_value=0, value=0)
-    
-    if st.button("Vorhersage berechnen", type="primary"):
-        # Gukoresha ML model
-        amount = predict_damage(vehicles, injuries, witnesses)
-        
-        # Kwerekana ibisubizo
-        st.metric("Erwartete Schadenhöhe", f"{amount:,.2f} EUR")
-        
-        # Visualization
-        chart_data = pd.DataFrame({
-            'Kategorie': ['Fahrzeuge', 'Verletzte', 'Zeugen'],
-            'Wert': [vehicles, injuries, witnesses]
-        })
-        fig = px.bar(chart_data, x='Kategorie', y='Wert', title="Unfall-Analyse")
-=======
 # Durchschnittliche Schadenhöhe je Schwere (aus dem Datensatz abgeleitet).
 # Dient als Basis für die regelbasierte Platzhalter-Prognose.
 BASE_AMOUNT = {
@@ -357,18 +374,13 @@ if st.button("Vorhersage erstellen", type="primary"):
             showlegend=False,
             margin=dict(t=60, b=40, l=60, r=20),
         )
->>>>>>> main
         st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Datensatz nicht gefunden — Vergleichsdiagramm erscheint, "
+                "sobald data/raw/dataset.csv vorhanden ist.")
 
-with col2:
-    st.subheader("Historische Daten")
-    # Gusoma amakuru muri Database
-    try:
-        engine = get_engine()
-        query = "SELECT meldung, prognose_eur FROM vorhersagen ORDER BY erstellt_am DESC LIMIT 5"
-        df_history = pd.read_sql(query, engine)
-        st.dataframe(df_history, use_container_width=True)
-    except Exception as e:
-        st.info("Datenbank ist noch leer oder nicht verbunden.")
-
-# Image of project architecture
+    st.caption(
+        "Hinweis: Die Schadenhöhe wird aktuell regelbasiert geschätzt "
+        "(Platzhalter). Nach Abschluss des Trainings wird hier das "
+        "ML-Regressionsmodell eingesetzt."
+    )

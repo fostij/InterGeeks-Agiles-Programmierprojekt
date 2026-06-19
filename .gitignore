@@ -81,3 +81,5 @@ network_config.json
 *.pt
 /data/output/
 /data/raw/
+*.pkl
+*.keras

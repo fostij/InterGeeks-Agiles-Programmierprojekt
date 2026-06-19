@@ -1,4 +1,15 @@
 import joblib
+<<<<<<< HEAD
+import pandas as pd
+from src.ml_config import REGRESSION_MODEL_PATH
+
+
+def predict_new_claim(input_data: dict) -> float:
+    pipeline = joblib.load(REGRESSION_MODEL_PATH)
+    df_input = pd.DataFrame([input_data])
+    prediction = pipeline.predict(df_input)
+    return float(prediction[0])
+=======
 import os
 import pandas as pd
 from prepare_data import get_processed_data
@@ -48,3 +59,4 @@ if __name__ == "__main__":
         print(f"💰 Predicted Vehicle Claim Amount: {result:.2f} EUR")
     except Exception as e:
         print(f"❌ Prediction failed: {e}")
+>>>>>>> 3021e37f5e8ba506c913b8dd6540222ba7b85146
