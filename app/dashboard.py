@@ -138,7 +138,7 @@ def predict_severity_from_photo(uploaded_file) -> tuple[str, float] | None:
     falls kein Modell verfügbar ist."""
     # Lazy-Import: TensorFlow nur laden, wenn wirklich ein Foto kommt
     try:
-        from src.cnn.predict_image import predict_severity, SEVERITY_DE as CNN_LABELS
+        from src.models.cnn.predict_image import predict_severity, SEVERITY_DE as CNN_LABELS
     except Exception:
         return None
 

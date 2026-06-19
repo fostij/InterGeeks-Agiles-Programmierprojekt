@@ -12,8 +12,8 @@ import tensorflow as tf
 # ---------------------------------------------------------------------
 # Konfiguration
 # ---------------------------------------------------------------------
-MODEL_PATH   = Path("src/cnn/model.keras")
-CLASSES_PATH = Path("src/cnn/classes.json")
+MODEL_PATH   = Path("src/models/cnn/model.keras")
+CLASSES_PATH = Path("src/models/cnn/classes.json")
 IMAGE_SIZE   = (224, 224)
 
 # Abbildung der Datensatz-Klassen auf deutsche Anzeigenamen.
