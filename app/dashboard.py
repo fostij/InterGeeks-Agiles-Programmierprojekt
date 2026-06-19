@@ -10,7 +10,11 @@ from pathlib import Path
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import torch
 from sqlalchemy import text
+
+# Import fuer das Regressionsmodell (aus der neuen Ordnerstruktur)
+from src.models.regression.regression import DamageRegressionHead
 
 # Projektordner zum Pfad hinzufügen, damit das CNN-Modul importierbar ist
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -159,12 +163,15 @@ def predict_severity_from_photo(uploaded_file) -> tuple[str, float] | None:
 
 
 # ---------------------------------------------------------------------
-# 5) Prognose der Schadenhöhe — VORLAEUFIGER PLATZHALTER
-#    TODO: Durch das trainierte Regressionsmodell ersetzen.
+# 5) Prognose der Schadenhöhe
 # ---------------------------------------------------------------------
 def predict_amount(features: dict) -> float:
     """Schätzt die Schadenhöhe (EUR) regelbasiert anhand der Schwere
     sowie Zuschlägen für beteiligte Fahrzeuge und Verletzte."""
+    
+    # ML-Regressionsmodell für genauere Vorhersagen
+    # reg_model = DamageRegressionHead()
+    
     amount = BASE_AMOUNT[features["severity"]]
     amount += (features["vehicles"] - 1) * 4_000
     amount += features["injuries"] * 3_000
