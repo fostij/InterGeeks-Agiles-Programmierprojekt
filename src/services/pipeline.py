@@ -1,10 +1,12 @@
 import torch
 from src.ml_config import BEST_CHECKPOINT_PATH
 from src.models.multi_head_insurance.inference import load_model, predict as predict_fn
-from src.models.multi_head_insurance.train import TrainConfig, run_training
+from src.models.multi_head_insurance.train import TrainConfig, run_training as run_multi_head_training
+from src.models.cnn.train_cnn import train as train_cnn_model
+from src.models.cnn.predict_image import predict_image
 
 def train_multi_head(config: TrainConfig):
-    run_training(config)
+    run_multi_head_training(config)
 
 def predict_multi_head(*text: str):
     device = torch.device("cpu")
@@ -23,10 +25,11 @@ def predict_multi_head(*text: str):
     return result_df
 
 def train_cnn():
-    pass
+    train_cnn_model()
 
-def predict_cnn():
-    pass
+def predict_cnn(image_path: str):
+    label, confidence = predict_image(image_path)
+    return label, confidence
 
 def train_regression():
     pass
