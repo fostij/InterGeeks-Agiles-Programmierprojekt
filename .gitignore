@@ -13,8 +13,8 @@ build/
 
 # Data files
 data/raw/ 
-src/cnn/model.keras
-src/cnn/classes.json
+src/models/cnn/model.keras
+src/models/cnn/classes.json
 # Virtual environments
 .venv/
 venv/
