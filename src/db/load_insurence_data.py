@@ -21,10 +21,11 @@ from sqlalchemy import text
 # Projektordner zum Python-Pfad hinzufügen, damit der Import
 # "from src.db.connection import ..." auch beim direkten Start klappt.
 sys.path.append(str(Path(__file__).resolve().parents[2]))
+from ml_config import INSURANCE_DATASET_PATH
 from src.db.connection import get_engine
 
 # Pfade zentral definieren
-CSV_PATH    = Path("data/raw/dataset.csv")
+CSV_PATH    = INSURANCE_DATASET_PATH
 SCHEMA_PATH = Path("sql/schema.sql")
 
 
@@ -40,24 +41,16 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
     Alle Entscheidungen hier sind Ergebnis der Datenqualitätsprüfung
     (siehe docs/datensatzbeschreibung.md)."""
 
-    # --- 2.1 Komplett leere Spalte "_c39" entfernen (Artefakt der CSV) ---
     df = df.drop(columns=["_c39"], errors="ignore")
 
-    # --- 2.2 Platzhalter '?' in echte fehlende Werte (NULL) umwandeln ---
-    # Betroffen: collision_type, property_damage, police_report_available
     df = df.replace("?", np.nan)
 
-    # --- 2.3 Datumsspalten von Text in echte Datumstypen umwandeln ---
     df["policy_bind_date"] = pd.to_datetime(df["policy_bind_date"]).dt.date
     df["incident_date"]   = pd.to_datetime(df["incident_date"]).dt.date
 
-    # --- 2.4 Zielvariable Klassifikation: 'Y'/'N' -> Boolean ---
     df["fraud_reported"] = df["fraud_reported"].map({"Y": True, "N": False})
 
-    # --- 2.5 Künstliche IDs erzeugen ---
-    # Im Datensatz entspricht 1 Zeile = 1 Kunde + 1 Police + 1 Unfall.
-    # Die fortlaufende Nummer dient daher als gemeinsamer Schlüssel
-    # für alle fünf Tabellen (kunde_id = police_id = unfall_id = Zeile).
+     # 1 Zeile = 1 Kunde + 1 Police + 1 Unfall -> gemeinsamer Schlüssel
     df["lfd_id"] = range(1, len(df) + 1)
 
     print(f"[TRANSFORM] Bereinigt: '?'-Werte -> NULL, _c39 entfernt, Typen gesetzt")
@@ -68,12 +61,11 @@ def load(df: pd.DataFrame) -> None:
     """Schritt 3 (LOAD): Schema anlegen und die 5 Tabellen befüllen."""
     engine = get_engine()
 
-    # --- 3.1 Schema ausführen (legt alle Tabellen neu an) ---
-    with engine.begin() as conn:                      # begin() = mit Transaktion
-        conn.execute(text(SCHEMA_PATH.read_text()))
+    with engine.begin() as conn:
+        conn.execute(text(SCHEMA_PATH.read_text(encoding="utf-8")))
     print("[LOAD]      Schema angelegt (5 Tabellen)")
 
-    # --- 3.2 Flache Tabelle in die normalisierten Tabellen aufteilen ---
+    # --- Flache Tabelle in die normalisierten Tabellen aufteilen ---
     # Jedes Dictionary: CSV-Spalte -> deutsche Spalte in der Datenbank.
 
     kunden = df[["lfd_id", "age", "insured_sex", "insured_education_level",
@@ -129,8 +121,6 @@ def load(df: pd.DataFrame) -> None:
                  "vehicle_claim": "fahrzeugschaden",
                  "fraud_reported": "betrug_gemeldet"})
 
-    # --- 3.3 Befüllen — Reihenfolge wegen Fremdschlüsseln wichtig! ---
-    # (Eltern-Tabellen zuerst, sonst verletzen die FKs die Integrität)
     for name, table in [("kunden", kunden), ("policen", policen),
                           ("fahrzeuge", fahrzeuge), ("unfaelle", unfaelle),
                           ("schaeden", schaeden)]:
@@ -142,7 +132,6 @@ def verify() -> None:
     """Abschließende Kontrolle: Zeilenzahlen und eine Beispiel-JOIN-Abfrage."""
     engine = get_engine()
     with engine.connect() as conn:
-        # JOIN über alle 5 Tabellen als Funktionsnachweis der Schlüssel
         result = conn.execute(text("""
             SELECT k.alter_jahre, f.marke, u.schadensschwere, s.gesamtschaden
             FROM schaeden s
@@ -157,9 +146,6 @@ def verify() -> None:
         print("           ", row)
 
 
-# ---------------------------------------------------------------------
-# Hauptprogramm: kompletter ETL-Lauf
-# ---------------------------------------------------------------------
 if __name__ == "__main__":
     df = extract()
     df = transform(df)
