@@ -3,7 +3,7 @@ from src.ml_config import INSURANCE_DATASET_PATH, VEHICLE_DATASET_PATH
 from sqlalchemy import text
 from src.db.connection import get_engine
 
-def get_insurence_dataset() -> pd.DataFrame:
+def get_insurance_dataset() -> pd.DataFrame:
     """
     Lädt den vollständigen Versicherungsdatensatz per JOIN über alle
     5 normalisierten Tabellen (kunden, policen, fahrzeuge, unfaelle,
