@@ -1,15 +1,37 @@
+"""Manueller Smoke-Test für das gespeicherte Regressionsmodell.
+ 
+Lädt das trainierte Modell und prüft anhand von zwei Beispielfällen
+(Kollision vs. Diebstahl), ob die Vorhersagen plausibel auseinanderliegen.
+Dient der schnellen manuellen Kontrolle, nicht als automatisierter Test.
+"""
+
+import logging
 import joblib
 import pandas as pd
+from src.exceptions import ModelLoadError
 from src.ml_config import REGRESSION_MODEL_PATH
 
-def test_model():
+logger = logging.getLogger(__name__)
+
+def test_model() -> None:
+    """Lädt das Regressionsmodell und vergleicht zwei Beispielvorhersagen.
+ 
+    Raises:
+        ModelLoadError: Wenn die Modell-Datei nicht existiert oder nicht
+            geladen werden kann.
+    """
+
     model_path = REGRESSION_MODEL_PATH
     
     if not model_path.exists():
-        print(f"❌ Error: Model file not found at {model_path}.")
-        return
+        raise ModelLoadError(f"Modell-Datei nicht gefunden unter {model_path}.")
 
-    model = joblib.load(model_path)
+
+    try:
+        model = joblib.load(model_path)
+    except Exception as exc:
+        raise ModelLoadError(f"Modell konnte nicht geladen werden: {exc}") from exc
+
     
     collision_case = pd.DataFrame([{
         'auto_year': 2020,
@@ -41,12 +63,16 @@ def test_model():
     collision_pred = model.predict(collision_case)[0]
     theft_pred = model.predict(theft_case)[0]
 
-    print(f"✅ Kollisionsfall — vorhergesagter Wert: {collision_pred:,.2f}")
-    print(f"✅ Diebstahl/Parked-Car-Fall — vorhergesagter Wert: {theft_pred:,.2f}")
+    logger.info("Kollisionsfall — vorhergesagter Wert: %.2f", collision_pred)
+    logger.info("Diebstahl/Parked-Car-Fall — vorhergesagter Wert: %.2f", theft_pred)
+
 
     if abs(collision_pred - theft_pred) < 1000:
-        print("⚠️ Warnung: Die Vorhersagen für beide Fälle liegen sehr nah beieinander.")
+        logger.warning("Die Vorhersagen für beide Fälle liegen sehr nah beieinander.")
 
 
 if __name__ == "__main__":
+    from src.logging_config import setup_logging
+ 
+    setup_logging()
     test_model()
