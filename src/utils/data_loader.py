@@ -1,7 +1,21 @@
+"""Laden der Datensätze aus der PostgreSQL-Datenbank.
+ 
+Stellt die JOIN-Abfragen bereit, die die 5 normalisierten Tabellen
+(kunden, policen, fahrzeuge, unfaelle, schaeden bzw. fahrzeug_katalog)
+wieder zu den ursprünglichen englischen Spaltennamen zusammenführen,
+damit der restliche Code (multi-head, regression) unverändert
+funktioniert.
+"""
+
+import logging
 import pandas as pd
-from src.ml_config import INSURANCE_DATASET_PATH, VEHICLE_DATASET_PATH
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from src.db.connection import get_engine
+from src.exceptions import DataPreparationError
+ 
+logger = logging.getLogger(__name__)
+
 
 def get_insurance_dataset() -> pd.DataFrame:
     """
@@ -10,7 +24,12 @@ def get_insurance_dataset() -> pd.DataFrame:
     schaeden) und bildet ihn auf die ursprünglichen englischen
     Spaltennamen ab, damit der restliche Code (multi-head, regression)
     unverändert funktioniert.
+ 
+    Raises:
+        DataPreparationError: Wenn die Datenbankverbindung oder die
+            Abfrage fehlschlägt.
     """
+
     engine = get_engine()
     query = text("""
         SELECT
@@ -65,8 +84,12 @@ def get_insurance_dataset() -> pd.DataFrame:
     """)
  
     with engine.connect() as conn:
-        df = pd.read_sql(query, conn)
- 
+        try:
+            df = pd.read_sql(query, conn)
+        except SQLAlchemyError as exc:
+            raise DataPreparationError(f"Versicherungsdatensatz konnte nicht geladen werden: {exc}") from exc
+        
+    logger.info("Versicherungsdatensatz geladen: %d Zeilen.", len(df))
     return df
  
  
@@ -76,7 +99,12 @@ def get_vehicle_dataset() -> pd.DataFrame:
     fahrzeug_katalog und bildet ihn auf die ursprünglichen englischen
     Spaltennamen ab (year, model, make), damit Code wie
     validate_vehicle_with() in inference.py unverändert funktioniert.
+ 
+    Raises:
+        DataPreparationError: Wenn die Datenbankverbindung oder die
+            Abfrage fehlschlägt.
     """
+
     engine = get_engine()
     query = text("""
         SELECT
@@ -87,6 +115,10 @@ def get_vehicle_dataset() -> pd.DataFrame:
     """)
  
     with engine.connect() as conn:
-        df = pd.read_sql(query, conn)
- 
+        try:
+            df = pd.read_sql(query, conn)
+        except SQLAlchemyError as exc:
+            raise DataPreparationError(f"Fahrzeugkatalog konnte nicht geladen werden: {exc}") from exc
+
+    logger.info("Fahrzeugkatalog geladen: %d Zeilen.", len(df))
     return df

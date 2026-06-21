@@ -1,3 +1,11 @@
+"""Textbausteine für den synthetischen Unfallbeschreibungs-Generator.
+ 
+Reine Datensammlung (Wortlisten, Satzschablonen, Konfigurationen je
+Fallart) ohne eigene Logik. Wird von accident_description_generator.py
+verwendet, um daraus zufällig variierte Unfallbeschreibungen
+zusammenzusetzen.
+"""
+
 DETAILS_TOTAL_LOSS = [
     "das Fahrzeug ist nicht mehr fahrbereit",
     "der tragende Karosserierahmen ist deformiert",
