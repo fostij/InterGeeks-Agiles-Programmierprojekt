@@ -8,3 +8,4 @@ tensorflow
 torch
 transformers
 scikit-learn
+psycopg2-binary
