@@ -1,7 +1,7 @@
 streamlit
 plotly
 sqlalchemy
-dotenv
+python-dotenv
 pandas
 numpy
 tensorflow
@@ -9,3 +9,4 @@ torch
 transformers
 scikit-learn
 psycopg2-binary
+pillow
