@@ -12,7 +12,7 @@ from src.models.regression.train_model import train_and_save_model
 
 logger = logging.getLogger(__name__)
 
-def run_full_pipeline():
+def run_full_pipeline() -> None:
     """Führt die komplette Regressions-Pipeline aus (Training + Speichern)."""
     logger.info("Starte Regressions-Pipeline.")
     train_and_save_model()
