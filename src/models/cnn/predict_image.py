@@ -12,17 +12,7 @@ import tensorflow as tf
 # ---------------------------------------------------------------------
 # Konfiguration
 # ---------------------------------------------------------------------
-MODEL_PATH   = Path("src/models/cnn/model.keras")
-CLASSES_PATH = Path("src/models/cnn/classes.json")
-IMAGE_SIZE   = (224, 224)
-
-# Abbildung der Datensatz-Klassen auf deutsche Anzeigenamen.
-# Die Schluessel entsprechen den Ordnernamen im Trainingsdatensatz.
-SEVERITY_DE = {
-    "01-minor": "Leichter Schaden",
-    "02-moderate": "Mittlerer Schaden",
-    "03-severe": "Erheblicher Schaden",
-}
+from src.ml_config import MODEL_PATH, CLASSES_PATH, SEVERITY_DE, IMAGE_SIZE
 
 
 @lru_cache(maxsize=1)
