@@ -4,21 +4,20 @@ Einziger Einstiegspunkt für jeden Client (Dashboard, E-Mail-Worker,
 Chatbot, ...). Orchestriert die Stufen: Anfrage speichern, Multi-Head-
 Textanalyse, optionale CNN-Bildanalyse, Bestimmung der finalen
 Schadensschwere und abschließende Regressions-Kostenschätzung. Jede
-Stufe persistiert ihr eigenes Ergebnis in der Datenbank, referenziert
-über anfrage_id.
+Stufe persistiert ihr eigenes Ergebnis über das übergebene
+PipelineResultRepository (siehe src.db.pipeline_repository); Pipeline
+selbst enthält keinen SQL-Code mehr (Single-Responsibility- und
+Dependency-Inversion-Prinzip).
 """
- 
+
 import logging
 from dataclasses import dataclass, field
 from typing import Any
 import joblib
 import pandas as pd
 import torch
-from sqlalchemy import text as sql_text
-from sqlalchemy.exc import SQLAlchemyError
-
-from src.db.connection import get_engine
-from src.exceptions import InferenceError, ModelLoadError, PersistenceError
+from src.db.pipeline_repository import PipelineResultRepository
+from src.exceptions import InferenceError, ModelLoadError
 from src.ml_config import (
     MULTI_HEAD_MODEL_PATH,
     REGRESSION_MODEL_PATH,
@@ -76,12 +75,14 @@ class PredictionResult:
 class Pipeline:
     """Einziger Backend-Einstiegspunkt für jeden Client (Dashboard, E-Mail-Worker, Chatbot, ...).
  
-    Enthält keine UI-Importe. Jede Stufe persistiert ihr eigenes Ergebnis
-    in der Datenbank, referenziert über anfrage_id.
+    Enthält keine UI-Importe und keinen SQL-Code. Jede Stufe delegiert
+    das Speichern ihres Ergebnisses an das übergebene
+    PipelineResultRepository, referenziert über anfrage_id.
     """
 
     def __init__(
         self,
+        repository: PipelineResultRepository,
         mh_checkpoint: str = str(MULTI_HEAD_MODEL_PATH),
         regression_model_path: str | None = str(REGRESSION_MODEL_PATH),
         device: str = "cpu",
@@ -89,6 +90,10 @@ class Pipeline:
         """Lädt die Multi-Head- und (optional) Regressions-Modelle.
  
         Args:
+            repository: Repository für die Persistenz der Stufenergebnisse
+                (siehe src.db.pipeline_repository.PipelineResultRepository).
+                Pipeline kennt keine Details der Speicherung, sondern ruft
+                nur dessen Methoden auf (Dependency-Inversion-Prinzip).
             mh_checkpoint: Pfad zum Multi-Head-Checkpoint (Pflichtstufe).
             regression_model_path: Pfad zum Regressionsmodell. Falls None
                 oder leer, wird die Regressionsstufe übersprungen.
@@ -99,6 +104,7 @@ class Pipeline:
                 nicht geladen werden kann.
         """
 
+        self.repository = repository
         self.device = torch.device(device)
 
         self.mh_model, self.mh_network_config, self.mh_label_encoders = load_mh_model(
@@ -163,30 +169,14 @@ class Pipeline:
     # ── Stage 1: persist the raw incoming request ───────────────────
 
     def _save_request(self, text: str, photo_path: str | None, source: str) -> int:
-        """Speichert die eingehende Rohanfrage und liefert die erzeugte anfrage_id.
+        """Speichert die eingehende Rohanfrage über das Repository und liefert die anfrage_id.
  
         Raises:
-            PersistenceError: Wenn der Insert fehlschlägt.
+            PersistenceError: Wenn der Insert fehlschlägt (wird aus
+                repository.save_request() durchgereicht).
         """
 
-        engine = get_engine()
-        try:
-            with engine.begin() as conn:
-                row = conn.execute(
-                    sql_text("""
-                        INSERT INTO anfragen (quelle, rohtext, foto_pfad)
-                        VALUES (:quelle, :text, :foto)
-                        RETURNING anfrage_id
-                    """),
-                    {"quelle": source, "text": text, "foto": photo_path},
-                ).fetchone()
-        except SQLAlchemyError as exc:
-            raise PersistenceError(f"Anfrage konnte nicht gespeichert werden: {exc}") from exc
- 
-        request_id = row[0]
-        logger.info("Anfrage gespeichert (anfrage_id=%d, source=%s).", request_id, source)
-        return request_id
-
+        return self.repository.save_request(text, photo_path, source)
 
     # ── Stage 2: multi-head text -> fields (+ severity confidence) ──
 
@@ -214,77 +204,7 @@ class Pipeline:
         result.text_confidence = conf_row.get("incident_severity")
 
         logger.info("Multi-Head-Analyse abgeschlossen (anfrage_id=%d).", result.request_id)
-        self._save_multihead_result(result, row, conf_row)
-
-    def _save_multihead_result(self, result: PredictionResult, row: dict, conf_row: dict) -> None:
-        """Speichert das Ergebnis der Multi-Head-Analyse in der Datenbank.
- 
-        Raises:
-            PersistenceError: Wenn der Insert fehlschlägt.
-        """
-
-        engine = get_engine()
-        try:
-            with engine.begin() as conn:
-                conn.execute(
-                    sql_text("""
-                        INSERT INTO multihead_ergebnisse
-                        (anfrage_id,
-                        incident_severity, incident_severity_conf,
-                        incident_type, incident_type_conf,
-                        collision_type, collision_type_conf,
-                        number_of_vehicles, number_of_vehicles_conf,
-                        bodily_injuries, bodily_injuries_conf,
-                        witnesses, witnesses_conf,
-                        police_report, police_report_conf,
-                        property_damage, property_damage_conf,
-                        auto_make, auto_make_conf,
-                        auto_year, auto_year_conf,
-                        fehlende_felder)
-                    VALUES
-                        (:anfrage_id,
-                        :severity, :severity_conf,
-                        :itype, :itype_conf,
-                        :ctype, :ctype_conf,
-                        :vehicles, :vehicles_conf,
-                        :injuries, :injuries_conf,
-                        :witnesses, :witnesses_conf,
-                        :police, :police_conf,
-                        :damage, :damage_conf,
-                        :make, :make_conf,
-                        :year, :year_conf,
-                        :missing)
-                """),
-                {
-                    "anfrage_id": result.request_id,
-                    "severity": row.get("incident_severity"),
-                    "severity_conf": conf_row.get("incident_severity"),
-                    "itype": row.get("incident_type"),
-                    "itype_conf": conf_row.get("incident_type"),
-                    "ctype": row.get("collision_type"),
-                    "ctype_conf": conf_row.get("collision_type"),
-                    "vehicles": row.get("number_of_vehicles_involved"),
-                    "vehicles_conf": conf_row.get("number_of_vehicles_involved"),
-                    "injuries": row.get("bodily_injuries"),
-                    "injuries_conf": conf_row.get("bodily_injuries"),
-                    "witnesses": row.get("witnesses"),
-                    "witnesses_conf": conf_row.get("witnesses"),
-                    "police": row.get("police_report_available"),
-                    "police_conf": conf_row.get("police_report_available"),
-                    "damage": row.get("property_damage"),
-                    "damage_conf": conf_row.get("property_damage"),
-                    "make": row.get("auto_make"),
-                    "make_conf": conf_row.get("auto_make"),
-                    "year": row.get("auto_year"),
-                    "year_conf": conf_row.get("auto_year"),
-                    "missing": ",".join(result.missing_fields),
-                },
-            )
-                
-        except SQLAlchemyError as exc:
-            raise PersistenceError(
-                f"Multi-Head-Ergebnis konnte nicht gespeichert werden (anfrage_id={result.request_id}): {exc}"
-            ) from exc
+        self.repository.save_multihead_result(result.request_id, row, conf_row, result.missing_fields)
 
     # ── Stage 3: photo -> severity (CNN), independent of text ───────
 
@@ -320,37 +240,7 @@ class Pipeline:
         result.photo_confidence = confidence
 
         logger.info("CNN-Analyse abgeschlossen (anfrage_id=%d, severity=%s).", result.request_id, severity)
-        self._save_cnn_result(result, label_de, severity, confidence)
-
-    def _save_cnn_result(
-        self, result: PredictionResult, label_de: str, severity: str, confidence: float
-    ) -> None:
-        """Speichert das Ergebnis der CNN-Bildanalyse in der Datenbank.
- 
-        Raises:
-            PersistenceError: Wenn der Insert fehlschlägt.
-        """
-
-        engine = get_engine()
-        try:
-            with engine.begin() as conn:
-                conn.execute(
-                    sql_text("""
-                        INSERT INTO cnn_ergebnisse (anfrage_id, severity, severity_de, confidence)
-                        VALUES (:anfrage_id, :severity, :severity_de, :confidence)
-                    """),
-                    {
-                        "anfrage_id": result.request_id,
-                        "severity": severity,
-                        "severity_de": label_de,
-                        "confidence": confidence,
-                    },
-                )
-
-        except SQLAlchemyError as exc:
-            raise PersistenceError(
-                f"CNN-Ergebnis konnte nicht gespeichert werden (anfrage_id={result.request_id}): {exc}"
-            ) from exc
+        self.repository.save_cnn_result(result.request_id, label_de, severity, confidence)
 
     # ── Stage 4: decide which severity wins ──────────────────────────
 
@@ -404,34 +294,7 @@ class Pipeline:
             result.request_id, result.predicted_amount,
         )
 
-        self._save_regression_result(result)
-
-    def _save_regression_result(self, result: PredictionResult) -> None:
-        """Speichert das Ergebnis der Regressions-Schätzung in der Datenbank.
- 
-        Raises:
-            PersistenceError: Wenn der Insert fehlschlägt.
-        """
-
-        engine = get_engine()
-        try:
-            with engine.begin() as conn:
-                conn.execute(
-                    sql_text("""
-                        INSERT INTO regression_ergebnisse (anfrage_id, vehicle_claim, severity_quelle)
-                        VALUES (:anfrage_id, :claim, :quelle)
-                    """),
-                    {
-                        "anfrage_id": result.request_id,
-                        "claim": result.predicted_amount,
-                        "quelle": result.severity_source,
-                    },
-                )
-
-        except SQLAlchemyError as exc:
-            raise PersistenceError(
-                f"Regressionsergebnis konnte nicht gespeichert werden (anfrage_id={result.request_id}): {exc}"
-            ) from exc
+        self.repository.save_regression_result(result.request_id, result.predicted_amount, result.severity_source)
 
     def _fields_to_regression_input(self, fields: dict[str, Any]) -> pd.DataFrame:
         """Bildet die Pipeline-Felder auf das vom Regressionsmodell erwartete Format ab.
@@ -452,7 +315,7 @@ class Pipeline:
     @staticmethod
     def _yes_no_to_int(value: Any) -> int:
         """Konvertiert "YES"/"NO" (oder None) in 1/0."""
-        
+
         if value is None:
             return 0
         return 1 if str(value).upper() == "YES" else 0
