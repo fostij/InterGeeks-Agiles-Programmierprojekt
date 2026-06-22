@@ -28,12 +28,12 @@ logger = logging.getLogger(__name__)
 class PipelineResultRepository:
     """Speichert Rohanfragen und Stufenergebnisse der Pipeline in PostgreSQL."""
 
-    def save_request(self, text: str, photo_path: str | None, source: str) -> int:
+    def save_request(self, text: str, hat_foto: bool, source: str) -> int:
         """Speichert die eingehende Rohanfrage und liefert die erzeugte anfrage_id.
  
         Args:
             text: Unfallbeschreibung als Rohtext.
-            photo_path: Pfad zu einem Foto des Schadens, falls vorhanden.
+            hat_foto: True, falls ein Foto analysiert wurde, sonst False.
             source: Herkunft der Anfrage (z. B. "dashboard", "email").
  
         Returns:
@@ -42,16 +42,17 @@ class PipelineResultRepository:
         Raises:
             PersistenceError: Wenn der Insert fehlschlägt.
         """
+
         engine = get_engine()
         try:
             with engine.begin() as conn:
                 row = conn.execute(
                     sql_text("""
-                        INSERT INTO anfragen (quelle, rohtext, foto_pfad)
-                        VALUES (:quelle, :text, :foto)
+                        INSERT INTO anfragen (quelle, rohtext, hat_foto)
+                        VALUES (:quelle, :text, :hat_foto)
                         RETURNING anfrage_id
                     """),
-                    {"quelle": source, "text": text, "foto": photo_path},
+                    {"quelle": source, "text": text, "hat_foto": hat_foto},
                 ).fetchone()
         except SQLAlchemyError as exc:
             raise PersistenceError(f"Anfrage konnte nicht gespeichert werden: {exc}") from exc
