@@ -231,7 +231,7 @@ class Pipeline:
 
     # ── Stage 3: photo -> severity (CNN), independent of text ───────
 
-    def _run_cnn(self, photo_bytes: bytes, result: PredictionResult, photo_path: str | None = None) -> None:
+    def _run_cnn(self, photo_path: str, result: PredictionResult) -> None:
         """Führt die optionale CNN-Bildanalyse aus und speichert das Ergebnis.
  
         CNN ist eine optionale Stufe: Sind die CNN-Abhängigkeiten nicht
@@ -249,7 +249,7 @@ class Pipeline:
             return
 
         try:
-            label_de, confidence = predict_severity(photo_bytes=photo_bytes, photo_path=photo_path)
+            label_de, confidence = predict_severity(photo_path)
         except Exception as exc:
             logger.error("CNN-Inferenz fehlgeschlagen (anfrage_id=%d): %s", result.request_id, exc)
             return
