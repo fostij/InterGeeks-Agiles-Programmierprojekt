@@ -15,7 +15,7 @@ from tensorflow.keras.applications import MobileNetV2
 DATA_DIR     = Path("data/raw/car_damage")
 TRAIN_DIR    = DATA_DIR / "training" 
 VAL_DIR      = DATA_DIR / "validation" 
-from src.ml_config import MODEL_PATH, CLASSES_PATH, IMAGE_SIZE
+from src.models.cnn.cnn_config import MODEL_PATH, CLASSES_PATH, IMAGE_SIZE
 BATCH_SIZE   = 32
 EPOCHS       = 10
 SEED         = 42
