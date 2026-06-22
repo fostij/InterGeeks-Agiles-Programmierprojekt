@@ -3,10 +3,10 @@ import pandas as pd
 from src.utils.dataset_cleaner import clean_insurence_dataset, fix_name_errors
 from src.utils.fake_data_generators.accident_description_generator import AccidentDataGenerator
 from src.ml_config import TARGET_FIELDS
-from src.utils.data_loader import get_insurence_dataset, get_vehicle_dataset
+from src.utils.data_loader import get_insurance_dataset, get_vehicle_dataset
 
 def get_cleaned_dataset() -> pd.DataFrame:
-    dataframe = get_insurence_dataset()
+    dataframe = get_insurance_dataset()
     cleaned = clean_insurence_dataset(dataframe)
     fixed = fix_name_errors(cleaned)
     return fixed

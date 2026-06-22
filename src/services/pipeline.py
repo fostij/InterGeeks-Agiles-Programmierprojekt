@@ -40,7 +40,7 @@ class PredictionResult:
     missing_fields: list[str] = field(default_factory=list)
 
     severity_from_text: str | None = None
-    text_confidence: float | None = None
+    text_confidence: dict | None = None
 
     severity_from_photo: str | None = None
     photo_confidence: float | None = None
@@ -82,8 +82,7 @@ class Pipeline:
         photo_path: str | None = None,
         source: str = "dashboard",
     ) -> PredictionResult:
-        #request_id = self._save_request(text, photo_path, source)
-        request_id = 0  # Dummy value since _save_request is disabled
+        request_id = self._save_request(text, photo_path, source)
         result = PredictionResult(request_id=request_id, fields={})
 
         if text and text.strip():
@@ -131,34 +130,62 @@ class Pipeline:
         result.severity_from_text = row.get("incident_severity")
         result.text_confidence = conf_row.get("incident_severity")
 
-        #self._save_multihead_result(result, row)
+        self._save_multihead_result(result, row, conf_row)
 
-    def _save_multihead_result(self, result: PredictionResult, row: dict):
+    def _save_multihead_result(self, result: PredictionResult, row: dict, conf_row: dict):
         engine = get_engine()
         with engine.begin() as conn:
             conn.execute(
                 sql_text("""
                     INSERT INTO multihead_ergebnisse
-                        (anfrage_id, incident_severity, severity_confidence, incident_type,
-                         collision_type, number_of_vehicles, bodily_injuries, witnesses,
-                         police_report, property_damage, auto_make, auto_year, fehlende_felder)
+                        (anfrage_id,
+                        incident_severity, incident_severity_conf,
+                        incident_type, incident_type_conf,
+                        collision_type, collision_type_conf,
+                        number_of_vehicles, number_of_vehicles_conf,
+                        bodily_injuries, bodily_injuries_conf,
+                        witnesses, witnesses_conf,
+                        police_report, police_report_conf,
+                        property_damage, property_damage_conf,
+                        auto_make, auto_make_conf,
+                        auto_year, auto_year_conf,
+                        fehlende_felder)
                     VALUES
-                        (:anfrage_id, :severity, :conf, :itype, :ctype, :vehicles, :injuries,
-                         :witnesses, :police, :damage, :make, :year, :missing)
+                        (:anfrage_id,
+                        :severity, :severity_conf,
+                        :itype, :itype_conf,
+                        :ctype, :ctype_conf,
+                        :vehicles, :vehicles_conf,
+                        :injuries, :injuries_conf,
+                        :witnesses, :witnesses_conf,
+                        :police, :police_conf,
+                        :damage, :damage_conf,
+                        :make, :make_conf,
+                        :year, :year_conf,
+                        :missing)
                 """),
                 {
                     "anfrage_id": result.request_id,
                     "severity": row.get("incident_severity"),
-                    "conf": result.text_confidence,
+                    "severity_conf": conf_row.get("incident_severity"),
                     "itype": row.get("incident_type"),
+                    "itype_conf": conf_row.get("incident_type"),
                     "ctype": row.get("collision_type"),
+                    "ctype_conf": conf_row.get("collision_type"),
                     "vehicles": row.get("number_of_vehicles_involved"),
+                    "vehicles_conf": conf_row.get("number_of_vehicles_involved"),
                     "injuries": row.get("bodily_injuries"),
+                    "injuries_conf": conf_row.get("bodily_injuries"),
                     "witnesses": row.get("witnesses"),
+                    "witnesses_conf": conf_row.get("witnesses"),
                     "police": row.get("police_report_available"),
+                    "police_conf": conf_row.get("police_report_available"),
                     "damage": row.get("property_damage"),
+                    "damage_conf": conf_row.get("property_damage"),
                     "make": row.get("auto_make"),
+                    "make_conf": conf_row.get("auto_make"),
                     "year": row.get("auto_year"),
+                    "year_conf": conf_row.get("auto_year"),
                     "missing": ",".join(result.missing_fields),
                 },
             )
@@ -179,7 +206,7 @@ class Pipeline:
         result.severity_from_photo = severity
         result.photo_confidence = confidence
 
-        #self._save_cnn_result(result, label_de, severity, confidence)
+        self._save_cnn_result(result, label_de, severity, confidence)
 
     def _save_cnn_result(
         self, result: PredictionResult, label_de: str, severity: str, confidence: float
@@ -232,7 +259,7 @@ class Pipeline:
         prediction = self.regression_model.predict(feature_vector)
         result.predicted_amount = float(prediction[0])
 
-        #self._save_regression_result(result)
+        self._save_regression_result(result)
 
     def _save_regression_result(self, result: PredictionResult):
         engine = get_engine()
