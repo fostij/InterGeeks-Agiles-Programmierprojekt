@@ -2,6 +2,7 @@
 # predict_image.py — Schadensschwere aus einem Foto vorhersagen
 # ---------------------------------------------------------------------
 
+import logging
 import json
 from functools import lru_cache
 from pathlib import Path
@@ -9,14 +10,14 @@ from pathlib import Path
 import numpy as np
 import tensorflow as tf
 
-# ---------------------------------------------------------------------
+logger = logging.getLogger(__name__)
+
 # Konfiguration
-# ---------------------------------------------------------------------
 from src.models.cnn.cnn_config import MODEL_PATH, CLASSES_PATH, SEVERITY_DE, IMAGE_SIZE
 
 
 @lru_cache(maxsize=1)
-def _load_model_and_classes():
+def _load_model_and_classes() -> tuple[tf.keras.Model, list[str]]:
     """Lädt Modell und Klassennamen einmalig und hält sie im Cache.
     @lru_cache sorgt dafür, dass das Modell nur beim ersten Aufruf
     geladen wird (wichtig für das Dashboard: kein Neuladen pro Klick)."""
@@ -67,4 +68,4 @@ if __name__ == "__main__":
         sys.exit(1)
 
     label, conf = predict_severity(sys.argv[1])
-    print(f"Predicted severity: {label} ({conf:.1%})")
+    logger.info(f"Predicted severity: {label} ({conf:.1%})")

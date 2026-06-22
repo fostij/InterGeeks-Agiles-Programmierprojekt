@@ -1,8 +1,7 @@
+# ---------------------------------------------------------------------
+# Gemeinsame Konstanten des CNN-Moduls
+# ---------------------------------------------------------------------
 from pathlib import Path
-
-# ---------------------------------------------------------------------
-# - gemeinsame Konstanten des CNN-Moduls
-# ---------------------------------------------------------------------
 
 # Pfade zum trainierten Modell und zu den Klassennamen
 MODEL_PATH = Path("src/models/cnn/model.keras")
@@ -18,8 +17,7 @@ SEVERITY_DE = {
     "03-severe": "Erheblicher Schaden",
 }
 
-# Abbildung der Datensatz-Klassen auf deutsche Anzeigenamen.
-# Die Schluessel entsprechen den Ordnernamen im Trainingsdatensatz.
+# Abbildung der CNN-Klassen auf die Schwere-Kategorien des Datensatzes
 CNN_TO_SEVERITY = {
     "01-minor": "Minor Damage",
     "02-moderate": "Major Damage",

@@ -2,6 +2,7 @@
 # train_cnn.py — CNN-Training zur Klassifikation der Schadensschwere
 # ---------------------------------------------------------------------
 
+import logging 
 import json
 from pathlib import Path
 
@@ -9,32 +10,33 @@ import tensorflow as tf
 from tensorflow.keras import layers, models
 from tensorflow.keras.applications import MobileNetV2
 
-# ---------------------------------------------------------------------
-# Konfiguration - zentral an einer Stelle
-# ---------------------------------------------------------------------
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger(__name__)
+
+# Gemeinsame Konstanten zentral aus config importieren
+from src.models.cnn.cnn_config import MODEL_PATH, CLASSES_PATH, IMAGE_SIZE
+
 DATA_DIR     = Path("data/raw/car_damage")
 TRAIN_DIR    = DATA_DIR / "training" 
 VAL_DIR      = DATA_DIR / "validation" 
-from src.models.cnn.cnn_config import MODEL_PATH, CLASSES_PATH, IMAGE_SIZE
 BATCH_SIZE   = 32
 EPOCHS       = 10
 SEED         = 42
 
 
-def load_datasets():
+def load_datasets() -> tuple[tf.data.Dataset, tf.data.Dataset, list[str]]:
     """Lädt Trainings- und Validierungsbilder aus den jeweils vorgegebenen
     Ordnern (training/ und validation/). Der Datensatz ist bereits geteilt,
     daher wird KEIN validation_split verwendet.
     Gibt (train_ds, val_ds, class_names) zurück."""
 
-    # Trainingsdaten aus dem Ordner training/ (Klassen = Unterordner)
     train_ds = tf.keras.utils.image_dataset_from_directory(
         TRAIN_DIR,
         seed=SEED,
         image_size=IMAGE_SIZE,
         batch_size=BATCH_SIZE,
     )
-    # Validierungsdaten aus dem Ordner validation/
+
     val_ds = tf.keras.utils.image_dataset_from_directory(
         VAL_DIR,
         seed=SEED,
@@ -43,7 +45,6 @@ def load_datasets():
     )
     class_names = train_ds.class_names
 
-    # Performance: Daten im Speicher zwischenpuffern (schnelleres Training)
     train_ds = train_ds.cache().prefetch(tf.data.AUTOTUNE)
     val_ds   = val_ds.cache().prefetch(tf.data.AUTOTUNE)
     return train_ds, val_ds, class_names
@@ -51,9 +52,9 @@ def load_datasets():
 
 def build_model(num_classes: int) -> tf.keras.Model:
     """Baut das Transfer-Learning-Modell:
-    Augmentation -> MobileNetV2 (eingefroren) -> Klassifikationskopf."""
+    Augmentation -> MobileNetV2 -> Klassifikationskopf."""
 
-    # --- Data Augmentation: kuenstliche Varianten gegen Overfitting ---
+    # --- Data Augmentation: künstliche Varianten gegen Overfitting ---
     augmentation = models.Sequential([
         layers.RandomFlip("horizontal"),
         layers.RandomRotation(0.1),
@@ -90,17 +91,15 @@ def train() -> None:
     """Kompletter Trainingslauf: Daten laden, Modell bauen, trainieren,
     speichern."""
     train_ds, val_ds, class_names = load_datasets()
-    print(f"Classes: {class_names}")
+    logger.info("Classes: %s", class_names)
 
     model = build_model(len(class_names))
     model.fit(train_ds, validation_data=val_ds, epochs=EPOCHS)
 
-    # Modell und Klassennamen speichern (Klassen brauchen wir spaeter
-    # in predict_image.py, um Index -> Name zuzuordnen)
     model.save(MODEL_PATH)
     CLASSES_PATH.write_text(json.dumps(class_names, ensure_ascii=False))
-    print(f"\nModel saved: {MODEL_PATH}")
-    print(f"Classes saved: {CLASSES_PATH}")
+    logger.info(f"Model saved: {MODEL_PATH}")
+    logger.info(f"Classes saved: {CLASSES_PATH}")
 
 
 if __name__ == "__main__":
