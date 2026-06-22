@@ -1,6 +1,6 @@
-# ---------------------------------------------------------------------
-# train_cnn.py — CNN-Training zur Klassifikation der Schadensschwere
-# ---------------------------------------------------------------------
+"""
+train_cnn.py — CNN-Training zur Klassifikation der Schadensschwere
+"""
 
 import logging 
 import json
