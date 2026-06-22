@@ -59,3 +59,47 @@ PREDICTION_FIELD = "vehicle_claim"
 INTEGER_FIELDS = ["auto_year", "witnesses", "number_of_vehicles_involved", "bodily_injuries"]
 NUMERIC_FIELDS = []
 CATEGORICAL_FIELDS = [f for f in TARGET_FIELDS if f not in NUMERIC_FIELDS]
+
+# ---------------------------------------------------------------------
+# - gemeinsame Konstanten des CNN-Moduls
+# ---------------------------------------------------------------------
+
+# Pfade zum trainierten Modell und zu den Klassennamen
+MODEL_PATH = Path("src/models/cnn/model.keras")
+CLASSES_PATH = Path("src/models/cnn/classes.json")
+
+# Bildgröße — muss in Training und Vorhersage identisch sein!
+IMAGE_SIZE = (224, 224)
+
+# Abbildung der CNN-Klassen auf deutsche Anzeigenamen
+SEVERITY_DE = {
+    "01-minor": "Leichter Schaden",
+    "02-moderate": "Mittlerer Schaden",
+    "03-severe": "Erheblicher Schaden",
+}
+
+# Abbildung der Datensatz-Klassen auf deutsche Anzeigenamen.
+# Die Schluessel entsprechen den Ordnernamen im Trainingsdatensatz.
+CNN_TO_SEVERITY = {
+    "01-minor": "Minor Damage",
+    "02-moderate": "Major Damage",
+    "03-severe": "Total Loss",
+}
+
+# Abbildung der CSV-Kategorien auf deutsche Anzeigenamen.
+# Interne englische Werte bleiben erhalten (Datensatz/Modell-Kompatibilität).
+SEVERITY__DE = {
+    "Trivial Damage": "Bagatellschaden",
+    "Minor Damage": "Leichter Schaden",
+    "Major Damage": "Erheblicher Schaden",
+    "Total Loss": "Totalschaden",
+}
+
+# Durchschnittliche Schadenhöhe je Schwere (aus dem Datensatz abgeleitet).
+# Dient als Basis für die regelbasierte Platzhalter-Prognose.
+BASE_AMOUNT = {
+    "Trivial Damage": 5_000,
+    "Minor Damage": 35_000,
+    "Major Damage": 62_000,
+    "Total Loss": 65_000,
+}
