@@ -1,11 +1,23 @@
-from dataclasses import dataclass, field
+"""Zentrale Backend-Pipeline für die Schadensschätzung.
+ 
+Einziger Einstiegspunkt für jeden Client (Dashboard, E-Mail-Worker,
+Chatbot, ...). Orchestriert die Stufen: Anfrage speichern, Multi-Head-
+Textanalyse, optionale CNN-Bildanalyse, Bestimmung der finalen
+Schadensschwere und abschließende Regressions-Kostenschätzung. Jede
+Stufe persistiert ihr eigenes Ergebnis über das übergebene
+PipelineResultRepository (siehe src.db.pipeline_repository); Pipeline
+selbst enthält keinen SQL-Code mehr (Single-Responsibility- und
+Dependency-Inversion-Prinzip).
+"""
 
+import logging
+from dataclasses import dataclass, field
+from typing import Any
 import joblib
 import pandas as pd
 import torch
-from sqlalchemy import text as sql_text
-
-from src.db.connection import get_engine
+from src.db.pipeline_repository import PipelineResultRepository
+from src.exceptions import InferenceError, ModelLoadError
 from src.ml_config import (
     MULTI_HEAD_MODEL_PATH,
     REGRESSION_MODEL_PATH,
@@ -15,6 +27,8 @@ from src.models.multi_head_insurance.inference import (
     load_model as load_mh_model,
     predict as mh_predict,
 )
+
+logger = logging.getLogger(__name__)
 
 # CNN gibt deutsche Labels zurück (3 Klassen), multi-head/Regression nutzt
 # englische severity-Klassen (4 Klassen). "Mittlerer Schaden" wird auf
@@ -34,8 +48,15 @@ YES_NO_TO_INT_FIELDS = ("police_report_available", "property_damage")
 
 @dataclass
 class PredictionResult:
+    """Ergebnis eines vollständigen Pipeline-Durchlaufs für eine Anfrage.
+ 
+    Sammelt die Ergebnisse aller Stufen (Multi-Head, CNN, Regression)
+    sowie die Information, welche Schadensschwere-Quelle sich am Ende
+    durchgesetzt hat.
+    """
+
     request_id: int
-    fields: dict
+    fields: dict[str, Any]
 
     missing_fields: list[str] = field(default_factory=list)
 
@@ -52,18 +73,38 @@ class PredictionResult:
 
 
 class Pipeline:
-    """
-    Single backend entry point for any client (dashboard, email worker,
-    chatbot, ...). No UI imports here. Every stage persists its own
-    result to the database, keyed by anfrage_id.
+    """Einziger Backend-Einstiegspunkt für jeden Client (Dashboard, E-Mail-Worker, Chatbot, ...).
+ 
+    Enthält keine UI-Importe und keinen SQL-Code. Jede Stufe delegiert
+    das Speichern ihres Ergebnisses an das übergebene
+    PipelineResultRepository, referenziert über anfrage_id.
     """
 
     def __init__(
         self,
+        repository: PipelineResultRepository,
         mh_checkpoint: str = str(MULTI_HEAD_MODEL_PATH),
         regression_model_path: str | None = str(REGRESSION_MODEL_PATH),
         device: str = "cpu",
-    ):
+    ) -> None:
+        """Lädt die Multi-Head- und (optional) Regressions-Modelle.
+ 
+        Args:
+            repository: Repository für die Persistenz der Stufenergebnisse
+                (siehe src.db.pipeline_repository.PipelineResultRepository).
+                Pipeline kennt keine Details der Speicherung, sondern ruft
+                nur dessen Methoden auf (Dependency-Inversion-Prinzip).
+            mh_checkpoint: Pfad zum Multi-Head-Checkpoint (Pflichtstufe).
+            regression_model_path: Pfad zum Regressionsmodell. Falls None
+                oder leer, wird die Regressionsstufe übersprungen.
+            device: Zielgerät für die Multi-Head-Inferenz ("cpu"/"cuda").
+ 
+        Raises:
+            ModelLoadError: Wenn das Multi-Head- oder das Regressionsmodell
+                nicht geladen werden kann.
+        """
+
+        self.repository = repository
         self.device = torch.device(device)
 
         self.mh_model, self.mh_network_config, self.mh_label_encoders = load_mh_model(
@@ -72,7 +113,12 @@ class Pipeline:
 
         self.regression_model = None
         if regression_model_path:
-            self.regression_model = joblib.load(regression_model_path)
+            try:
+                self.regression_model = joblib.load(regression_model_path)
+            except Exception as exc:
+                raise ModelLoadError(f"Regressionsmodell konnte nicht geladen werden: {exc}") from exc
+
+        logger.info("Pipeline initialisiert (device=%s).", self.device)
 
     # ── Public API ───────────────────────────────────────────────────
 
@@ -82,6 +128,28 @@ class Pipeline:
         photo_path: str | None = None,
         source: str = "dashboard",
     ) -> PredictionResult:
+        """Führt einen vollständigen Pipeline-Durchlauf für eine Anfrage aus.
+ 
+        Stufen: Anfrage speichern, Multi-Head-Textanalyse (falls Text
+        vorhanden), CNN-Bildanalyse (falls Foto vorhanden), Bestimmung
+        der finalen Schadensschwere, abschließend Regressions-
+        Kostenschätzung (falls Regressionsmodell verfügbar und Schwere
+        bestimmt wurde).
+ 
+        Args:
+            text: Unfallbeschreibung als Rohtext. Leer, falls nicht vorhanden.
+            photo_path: Pfad zu einem Foto des Schadens, falls vorhanden.
+            source: Herkunft der Anfrage (z. B. "dashboard", "email").
+ 
+        Returns:
+            PredictionResult mit den Ergebnissen aller durchlaufenen Stufen.
+ 
+        Raises:
+            PersistenceError: Wenn die Anfrage nicht in der Datenbank
+                gespeichert werden kann.
+            InferenceError: Wenn die Multi-Head-Textanalyse fehlschlägt.
+        """
+
         request_id = self._save_request(text, photo_path, source)
         result = PredictionResult(request_id=request_id, fields={})
 
@@ -101,21 +169,26 @@ class Pipeline:
     # ── Stage 1: persist the raw incoming request ───────────────────
 
     def _save_request(self, text: str, photo_path: str | None, source: str) -> int:
-        engine = get_engine()
-        with engine.begin() as conn:
-            row = conn.execute(
-                sql_text("""
-                    INSERT INTO anfragen (quelle, rohtext, foto_pfad)
-                    VALUES (:quelle, :text, :foto)
-                    RETURNING anfrage_id
-                """),
-                {"quelle": source, "text": text, "foto": photo_path},
-            ).fetchone()
-        return row[0]
+        """Speichert die eingehende Rohanfrage über das Repository und liefert die anfrage_id.
+ 
+        Raises:
+            PersistenceError: Wenn der Insert fehlschlägt (wird aus
+                repository.save_request() durchgereicht).
+        """
+
+        return self.repository.save_request(text, photo_path, source)
 
     # ── Stage 2: multi-head text -> fields (+ severity confidence) ──
 
-    def _run_multihead(self, text: str, result: PredictionResult):
+    def _run_multihead(self, text: str, result: PredictionResult) -> None:
+        """Führt die Multi-Head-Textanalyse aus und speichert das Ergebnis.
+ 
+        Raises:
+            InferenceError: Wenn die Multi-Head-Inferenz fehlschlägt
+                (wird aus mh_predict() durchgereicht).
+            PersistenceError: Wenn das Ergebnis nicht gespeichert werden kann.
+        """
+
         df, confidences = mh_predict(
             texts=[text],
             model=self.mh_model,
@@ -130,110 +203,55 @@ class Pipeline:
         result.severity_from_text = row.get("incident_severity")
         result.text_confidence = conf_row.get("incident_severity")
 
-        self._save_multihead_result(result, row, conf_row)
-
-    def _save_multihead_result(self, result: PredictionResult, row: dict, conf_row: dict):
-        engine = get_engine()
-        with engine.begin() as conn:
-            conn.execute(
-                sql_text("""
-                    INSERT INTO multihead_ergebnisse
-                        (anfrage_id,
-                        incident_severity, incident_severity_conf,
-                        incident_type, incident_type_conf,
-                        collision_type, collision_type_conf,
-                        number_of_vehicles, number_of_vehicles_conf,
-                        bodily_injuries, bodily_injuries_conf,
-                        witnesses, witnesses_conf,
-                        police_report, police_report_conf,
-                        property_damage, property_damage_conf,
-                        auto_make, auto_make_conf,
-                        auto_year, auto_year_conf,
-                        fehlende_felder)
-                    VALUES
-                        (:anfrage_id,
-                        :severity, :severity_conf,
-                        :itype, :itype_conf,
-                        :ctype, :ctype_conf,
-                        :vehicles, :vehicles_conf,
-                        :injuries, :injuries_conf,
-                        :witnesses, :witnesses_conf,
-                        :police, :police_conf,
-                        :damage, :damage_conf,
-                        :make, :make_conf,
-                        :year, :year_conf,
-                        :missing)
-                """),
-                {
-                    "anfrage_id": result.request_id,
-                    "severity": row.get("incident_severity"),
-                    "severity_conf": conf_row.get("incident_severity"),
-                    "itype": row.get("incident_type"),
-                    "itype_conf": conf_row.get("incident_type"),
-                    "ctype": row.get("collision_type"),
-                    "ctype_conf": conf_row.get("collision_type"),
-                    "vehicles": row.get("number_of_vehicles_involved"),
-                    "vehicles_conf": conf_row.get("number_of_vehicles_involved"),
-                    "injuries": row.get("bodily_injuries"),
-                    "injuries_conf": conf_row.get("bodily_injuries"),
-                    "witnesses": row.get("witnesses"),
-                    "witnesses_conf": conf_row.get("witnesses"),
-                    "police": row.get("police_report_available"),
-                    "police_conf": conf_row.get("police_report_available"),
-                    "damage": row.get("property_damage"),
-                    "damage_conf": conf_row.get("property_damage"),
-                    "make": row.get("auto_make"),
-                    "make_conf": conf_row.get("auto_make"),
-                    "year": row.get("auto_year"),
-                    "year_conf": conf_row.get("auto_year"),
-                    "missing": ",".join(result.missing_fields),
-                },
-            )
+        logger.info("Multi-Head-Analyse abgeschlossen (anfrage_id=%d).", result.request_id)
+        self.repository.save_multihead_result(result.request_id, row, conf_row, result.missing_fields)
 
     # ── Stage 3: photo -> severity (CNN), independent of text ───────
 
-    def _run_cnn(self, photo_path: str, result: PredictionResult):
+    def _run_cnn(self, photo_path: str, result: PredictionResult) -> None:
+        """Führt die optionale CNN-Bildanalyse aus und speichert das Ergebnis.
+ 
+        CNN ist eine optionale Stufe: Sind die CNN-Abhängigkeiten nicht
+        installiert (ImportError), wird das als erwarteter Fall behandelt
+        und die Stufe übersprungen. Schlägt die Inferenz selbst fehl
+        (z. B. beschädigtes Bild, Modellfehler), wird das als Fehler
+        geloggt, die Pipeline läuft aber ohne Foto-Schwere weiter, statt
+        komplett abzubrechen.
+        """
+
         try:
             from src.models.cnn.predict_image import predict_severity
-        except Exception:
+        except ImportError:
+            logger.info("CNN-Abhängigkeiten nicht verfügbar, Bildanalyse wird übersprungen.")
             return
 
-        label_de, confidence = predict_severity(photo_path)
+        try:
+            label_de, confidence = predict_severity(photo_path)
+        except Exception as exc:
+            logger.error("CNN-Inferenz fehlgeschlagen (anfrage_id=%d): %s", result.request_id, exc)
+            return
+
         severity = CNN_LABEL_TO_SEVERITY.get(label_de)
         if severity is None:
+            logger.warning("Unbekanntes CNN-Label '%s', Foto-Schwere wird ignoriert.", label_de)
             return
 
         result.severity_from_photo = severity
         result.photo_confidence = confidence
 
-        self._save_cnn_result(result, label_de, severity, confidence)
-
-    def _save_cnn_result(
-        self, result: PredictionResult, label_de: str, severity: str, confidence: float
-    ):
-        engine = get_engine()
-        with engine.begin() as conn:
-            conn.execute(
-                sql_text("""
-                    INSERT INTO cnn_ergebnisse (anfrage_id, severity, severity_de, confidence)
-                    VALUES (:anfrage_id, :severity, :severity_de, :confidence)
-                """),
-                {
-                    "anfrage_id": result.request_id,
-                    "severity": severity,
-                    "severity_de": label_de,
-                    "confidence": confidence,
-                },
-            )
+        logger.info("CNN-Analyse abgeschlossen (anfrage_id=%d, severity=%s).", result.request_id, severity)
+        self.repository.save_cnn_result(result.request_id, label_de, severity, confidence)
 
     # ── Stage 4: decide which severity wins ──────────────────────────
 
-    def _resolve_severity(self, result: PredictionResult):
+    def _resolve_severity(self, result: PredictionResult) -> None:
+        """Bestimmt die finale Schadensschwere aus Text- und Foto-Schätzung.
+ 
+        CNN und Multi-Head können unabhängig voneinander eine Schwere
+        schätzen. Die Schätzung mit der höheren Konfidenz gewinnt. Ist
+        nur eine der beiden Quellen vorhanden, gewinnt diese automatisch.
         """
-        Both CNN and multi-head can independently estimate severity.
-        Whichever has higher confidence wins. If only one ran, it wins
-        by default.
-        """
+
         text_conf = result.text_confidence or 0.0
         photo_conf = result.photo_confidence or 0.0
 
@@ -254,29 +272,38 @@ class Pipeline:
 
     # ── Stage 5: fields -> vehicle_claim (regression) ────────────────
 
-    def _run_regression(self, result: PredictionResult):
+    def _run_regression(self, result: PredictionResult) -> None:
+        """Schätzt vehicle_claim aus den bisher ermittelten Feldern und speichert das Ergebnis.
+ 
+        Raises:
+            InferenceError: Wenn die Regressions-Vorhersage fehlschlägt.
+            PersistenceError: Wenn das Ergebnis nicht gespeichert werden kann.
+        """
+
         feature_vector = self._fields_to_regression_input(result.fields)
-        prediction = self.regression_model.predict(feature_vector)
+
+        try:
+            prediction = self.regression_model.predict(feature_vector)
+        except Exception as exc:
+            raise InferenceError(f"Regressions-Vorhersage fehlgeschlagen (anfrage_id={result.request_id}): {exc}") from exc
+
         result.predicted_amount = float(prediction[0])
 
-        self._save_regression_result(result)
+        logger.info(
+            "Regressions-Schätzung abgeschlossen (anfrage_id=%d, vehicle_claim=%.2f).",
+            result.request_id, result.predicted_amount,
+        )
 
-    def _save_regression_result(self, result: PredictionResult):
-        engine = get_engine()
-        with engine.begin() as conn:
-            conn.execute(
-                sql_text("""
-                    INSERT INTO regression_ergebnisse (anfrage_id, vehicle_claim, severity_quelle)
-                    VALUES (:anfrage_id, :claim, :quelle)
-                """),
-                {
-                    "anfrage_id": result.request_id,
-                    "claim": result.predicted_amount,
-                    "quelle": result.severity_source,
-                },
-            )
+        self.repository.save_regression_result(result.request_id, result.predicted_amount, result.severity_source)
 
-    def _fields_to_regression_input(self, fields: dict) -> pd.DataFrame:
+    def _fields_to_regression_input(self, fields: dict[str, Any]) -> pd.DataFrame:
+        """Bildet die Pipeline-Felder auf das vom Regressionsmodell erwartete Format ab.
+ 
+        Konvertiert insbesondere die "YES"/"NO"-Strings aus der Multi-Head-
+        Vorhersage in 1/0-Werte, wie sie das Regressionsmodell beim
+        Training gesehen hat (siehe regression/prepare_data.py).
+        """
+
         regression_input = {}
         for f in TARGET_FIELDS:
             val = fields.get(f)
@@ -286,7 +313,9 @@ class Pipeline:
         return pd.DataFrame([regression_input])
 
     @staticmethod
-    def _yes_no_to_int(value) -> int:
+    def _yes_no_to_int(value: Any) -> int:
+        """Konvertiert "YES"/"NO" (oder None) in 1/0."""
+
         if value is None:
             return 0
         return 1 if str(value).upper() == "YES" else 0

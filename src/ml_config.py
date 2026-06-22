@@ -1,3 +1,10 @@
+"""Zentrale Konfiguration für Datenpfade, Modellpfade und Feldlisten.
+ 
+Dieses Modul bündelt alle projektweiten Konstanten (Dateipfade, gültige
+Kategorien, Zielfelder), damit sie nicht in einzelnen Skripten verstreut
+und dupliziert werden.
+"""
+
 from pathlib import Path
 
 INSURANCE_DATASET_PATH = Path("data/raw/dataset.csv")
@@ -8,10 +15,6 @@ MULTI_HEAD_DATASET_PATH = Path("data/output/output.jsonl")
 NETWORK_CONFIG_PATH = Path("network_config.json")
 OUTPUT_CHECKPOINT_PATH = Path("data/output/last_checkpoint.pt")
 BEST_CHECKPOINT_PATH = Path("data/output/best_checkpoint.pt")
-
-MULTI_HEAD_MODEL_PATH = Path("checkpoints/multi_head_model.pt")
-CNN_MODEL_PATH = Path("checkpoints/cnn_model.keras")
-REGRESSION_MODEL_PATH = Path("checkpoints/regression_model.pkl")
 
 MULTI_HEAD_MODEL_PATH = Path("checkpoints/multi_head_model.pt")
 CNN_MODEL_PATH = Path("checkpoints/cnn_model.keras")

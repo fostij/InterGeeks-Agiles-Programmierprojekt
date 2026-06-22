@@ -1,20 +1,40 @@
+"""Training des Multi-Head-Klassifikationsmodells für Unfallbeschreibungen.
+ 
+Orchestriert den kompletten Trainingsablauf: Datenaufbereitung, Aufbau
+der DataLoader, Trainings-/Evaluierungsschleife über mehrere Epochen,
+Tracking des besten Checkpoints anhand der partial_score-Metrik sowie
+abschließende Evaluierung auf dem Testdatensatz.
+"""
+
+import logging
 import pandas as pd
 import json
+from sklearn.preprocessing import LabelEncoder
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 from torch.optim import AdamW
 from dataclasses import dataclass
 from transformers import get_linear_schedule_with_warmup
+from src.exceptions import DataPreparationError, ModelLoadError, TrainingError
 from src.models.multi_head_insurance.losses import DynamicMultiHeadLoss
 from src.models.multi_head_insurance.models import GermanInsuranceClassifier
 from src.models.multi_head_insurance.dataset import GermanInsuranceDataset
 from src.utils.labels_encoder import prepare_pipeline_and_save_jsonl
 from src.models.multi_head_insurance.engine import MultiHeadEvaluator, evaluate
 from src.utils.data_orchestrator import get_cleaned_dataset
+ 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class TrainConfig:
+    """Konfiguration für einen vollständigen Trainingslauf.
+ 
+    Bündelt Hyperparameter, Split-Verhältnisse und Dateipfade. Die Felder
+    network_config und label_encoders werden erst zur Laufzeit befüllt
+    (siehe build_save_set_network_config()).
+    """
+
     batch_size: int = 4
     lr: float = 2e-5
     epochs: int = 1
@@ -32,11 +52,17 @@ class TrainConfig:
     output_checkpoint: str = None
     best_checkpoint: str = None
 
-    network_config: dict = None
-    label_encoders: dict = None
+    network_config: dict[str, dict] = None
+    label_encoders: dict[str, LabelEncoder] = None
     
 @dataclass
 class BestModelTracker:
+    """Verfolgt den besten Checkpoint über alle Trainingsepochen hinweg.
+ 
+    Speichert nach jeder Epoche automatisch den Checkpoint, falls sich
+    die überwachte Metrik verbessert hat (siehe update()).
+    """
+
     output_checkpoint: str
     metric: str = "partial_score"  # "partial_score" | "exact_match" | "val_loss"
     mode: str = "max"              # "max" for accuracy, "min" for loss
@@ -45,45 +71,91 @@ class BestModelTracker:
     best_epoch: int = -1
 
     def is_better(self, value: float) -> bool:
+        """Prüft, ob der übergebene Wert den bisher besten Wert übertrifft."""
+
         if self.best_value is None:
             return True
         if self.mode == "max":
             return value > self.best_value
         return value < self.best_value
 
-    def update(self, value: float, epoch: int, model, optimizer, cfg) -> bool:
+    def update(self, value: float, epoch: int, model: GermanInsuranceClassifier, optimizer: AdamW, cfg: TrainConfig) -> bool:
+        """Aktualisiert den besten Wert und speichert ggf. einen neuen Checkpoint.
+ 
+        Returns:
+            True, wenn ein neuer bester Checkpoint gespeichert wurde.
+        """
+
         if self.is_better(value):
             self.best_value = value
             self.best_epoch = epoch
             save_checkpoint(cfg, model, optimizer, epoch, value, path=self.output_checkpoint)
-            print(f"  ✓ New best {self.metric}={value:.4f} — checkpoint saved")
+            logger.info("Neuer bester %s=%.4f — Checkpoint gespeichert.", self.metric, value)
             return True
         return False
 
-    def summary(self):
-        print(f"\n Best {self.metric}={self.best_value:.4f} at epoch {self.best_epoch + 1}")
+    def summary(self) -> None:
+        """Loggt den besten erreichten Wert und die zugehörige Epoche."""
+
+        logger.info("Bester %s=%.4f bei Epoche %d.", self.metric, self.best_value, self.best_epoch + 1)
 
 
-def get_device():
+
+def get_device() -> torch.device:
+    """Wählt das verfügbare Rechengerät (GPU, falls vorhanden, sonst CPU)."""
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using processing engine: {device}")
+    logger.info("Verwende Recheneinheit: %s", device)
     return device
 
-def build_save_set_network_config(cfg: TrainConfig, dataset: pd.DataFrame):
+def build_save_set_network_config(cfg: TrainConfig, dataset: pd.DataFrame) -> tuple[dict[str, dict], dict[str, LabelEncoder]]:
+    """Erstellt die Head-Konfiguration, speichert sie und hängt sie an cfg an.
+ 
+    Args:
+        cfg: Trainingskonfiguration; wird mit network_config und
+            label_encoders befüllt.
+        dataset: Bereinigter Datensatz, aus dem die JSONL-Trainingsdaten
+            und die Label-Encoder erzeugt werden.
+ 
+    Returns:
+        Tupel (network_config, label_encoders).
+ 
+    Raises:
+        DataPreparationError: Wenn die Netzwerkkonfiguration nicht
+            gespeichert oder wieder eingelesen werden kann.
+    """
+
     network_config, label_encoders = prepare_pipeline_and_save_jsonl(cfg.dataset_count, cfg.dataset_path, dataset)
+    try:
+        with open(cfg.network_config_path, "w", encoding="utf-8") as f:
+            json.dump(network_config, f, indent=4)
 
-    with open(cfg.network_config_path, "w", encoding="utf-8") as f:
-        json.dump(network_config, f, indent=4)
+        with open(cfg.network_config_path, "r", encoding="utf-8") as f:
+            final_network_config = json.load(f)
 
-    with open(cfg.network_config_path, "r", encoding="utf-8") as f:
-        final_network_config = json.load(f)
+    except OSError as exc:
+        raise DataPreparationError(f"Netzwerkkonfiguration konnte nicht gespeichert werden: {exc}") from exc
 
     cfg.network_config = final_network_config
     cfg.label_encoders = label_encoders
-    print("✓ The head size configuration has been successfully saved to disk.")
+    logger.info("Head-Größen-Konfiguration erfolgreich gespeichert.")
     return final_network_config, label_encoders
 
-def build_dataloaders(cfg: TrainConfig, dataset):
+def build_dataloaders(cfg: TrainConfig, dataset: GermanInsuranceDataset) -> tuple[DataLoader, DataLoader, DataLoader]:
+    """Teilt den Datensatz in Train/Val/Test auf und baut die DataLoader.
+ 
+    Args:
+        cfg: Trainingskonfiguration mit den Split-Verhältnissen.
+        dataset: GermanInsuranceDataset-Instanz.
+ 
+    Returns:
+        Tupel (train_loader, val_loader, test_loader).
+ 
+    Raises:
+        ValueError: Wenn die Split-Verhältnisse nicht zu 1.0 aufsummieren
+            oder eine der resultierenden Teilmengen leer wäre.
+    """
+
     total = len(dataset)
     split_sum = cfg.train_split + cfg.val_split + cfg.test_split
     if abs(split_sum - 1.0) > 1e-8:
@@ -112,7 +184,17 @@ def build_dataloaders(cfg: TrainConfig, dataset):
 
     return train_loader, val_loader, test_loader
 
-def build_model(cfg: TrainConfig, device):
+def build_model(cfg: TrainConfig, device: torch.device) -> tuple[GermanInsuranceClassifier, DynamicMultiHeadLoss, AdamW]:
+    """Baut Modell, Verlustfunktion und Optimierer für das Training auf.
+ 
+    Args:
+        cfg: Trainingskonfiguration mit bereits gesetztem network_config.
+        device: Zielgerät, auf das das Modell geladen wird.
+ 
+    Returns:
+        Tupel (model, criterion, optimizer).
+    """
+
     model = GermanInsuranceClassifier(model_name=cfg.model_name, network_config=cfg.network_config)
     model.to(device)
 
@@ -121,7 +203,22 @@ def build_model(cfg: TrainConfig, device):
 
     return model, criterion, optimizer
 
-def train_step(batch, model, criterion, optimizer, scheduler, device, max_grad_norm, network_config):
+def train_step(
+    batch: dict[str, torch.Tensor],
+    model: GermanInsuranceClassifier,
+    criterion: DynamicMultiHeadLoss,
+    optimizer: AdamW,
+    scheduler: torch.optim.lr_scheduler.LambdaLR,
+    device: torch.device,
+    max_grad_norm: float,
+    network_config: dict[str, dict],
+) -> tuple[float, dict[str, float]]:
+    """Führt einen einzelnen Trainingsschritt (Forward + Backward + Update) aus.
+ 
+    Returns:
+        Tupel (loss_value, loss_dict) für diesen Batch.
+    """
+
     optimizer.zero_grad()
             
     input_ids = batch["input_ids"].to(device)
@@ -137,7 +234,7 @@ def train_step(batch, model, criterion, optimizer, scheduler, device, max_grad_n
         max_val = tensor[tensor != -100].max().item() if (tensor != -100).any() else -1
         num_classes = network_config[field.replace("label_", "")]["size"]
         if max_val >= num_classes:
-            print(f"INVALID: {field} max={max_val} but size={num_classes}")
+            logger.warning("Ungültiges Label: %s max=%d aber size=%d", field, max_val, num_classes)
     loss, loss_dict = criterion(predictions, batch_targets)
             
     loss.backward()
@@ -147,7 +244,22 @@ def train_step(batch, model, criterion, optimizer, scheduler, device, max_grad_n
     return loss.item(), loss_dict
     
 
-def train_epoch(train_loader, model, criterion, optimizer, scheduler, device, epoch, cfg: TrainConfig):
+def train_epoch(
+    train_loader: DataLoader,
+    model: GermanInsuranceClassifier,
+    criterion: DynamicMultiHeadLoss,
+    optimizer: AdamW,
+    scheduler: torch.optim.lr_scheduler.LambdaLR,
+    device: torch.device,
+    epoch: int,
+    cfg: TrainConfig,
+) -> float:
+    """Trainiert das Modell für eine vollständige Epoche.
+ 
+    Returns:
+        Durchschnittlicher Trainingsverlust über alle Batches der Epoche.
+    """
+
     model.train()
     running_loss = 0.0
 
@@ -157,11 +269,28 @@ def train_epoch(train_loader, model, criterion, optimizer, scheduler, device, ep
 
         if batch_idx % 5 == 0:
             current_lr = scheduler.get_last_lr()[0]
-            print(f"Epoch [{epoch + 1}/{cfg.epochs}] | Step [{batch_idx}/{len(train_loader)}] | Loss: {loss:.4f} | LR: {current_lr:.2e}")
+            logger.info(
+                "Epoche [%d/%d] | Schritt [%d/%d] | Loss: %.4f | LR: %.2e",
+                epoch + 1, cfg.epochs, batch_idx, len(train_loader), loss, current_lr,
+            )
     
     return running_loss / len(train_loader)
 
-def evaluate_epoch(loader, model, criterion, device, epoch, evaluator: MultiHeadEvaluator, split_name: str = "val"):
+def evaluate_epoch(
+    loader: DataLoader,
+    model: GermanInsuranceClassifier,
+    criterion: DynamicMultiHeadLoss,
+    device: torch.device,
+    epoch: int,
+    evaluator: MultiHeadEvaluator,
+    split_name: str = "val",
+) -> tuple[float, dict[str, float], dict[str, float], float, float]:
+    """Evaluiert das Modell auf einem gegebenen DataLoader (val oder test).
+ 
+    Returns:
+        Tupel (avg_loss, loss_dict, acc_dict, exact_match, partial_score).
+    """
+
     avg_loss, loss_dict, acc_dict, exact, partial = evaluate(
         model=model,
         dataloader=loader,
@@ -170,13 +299,36 @@ def evaluate_epoch(loader, model, criterion, device, epoch, evaluator: MultiHead
         evaluator=evaluator
     )
 
-    print(
-        f"\n📊 Epoch {epoch+1} | {split_name}_loss: {avg_loss:.4f} | "
-        f"exact: {exact:.4f} | partial: {partial:.4f}"
+    logger.info(
+        "Epoche %d | %s_loss: %.4f | exact: %.4f | partial: %.4f",
+        epoch + 1, split_name, avg_loss, exact, partial,
     )
+
     return avg_loss, loss_dict, acc_dict, exact, partial
 
-def save_checkpoint(cfg, model, optimizer, epoch, loss, path=None):
+def save_checkpoint(
+    cfg: TrainConfig,
+    model: GermanInsuranceClassifier,
+    optimizer: AdamW,
+    epoch: int,
+    loss: float,
+    path: str | None = None,
+) -> None:
+    """Speichert Modell- und Optimierer-Zustand als Checkpoint.
+ 
+    Args:
+        cfg: Trainingskonfiguration (liefert network_config, label_encoders
+            und ggf. den Standard-Speicherpfad output_checkpoint).
+        model: Zu speicherndes Modell.
+        optimizer: Zugehöriger Optimierer.
+        epoch: Aktuelle Epoche.
+        loss: Aktueller Verlustwert (zur Dokumentation im Checkpoint).
+        path: Zielpfad. Falls None, wird cfg.output_checkpoint verwendet.
+ 
+    Raises:
+        TrainingError: Wenn der Checkpoint nicht geschrieben werden kann.
+    """
+
     checkpoint = {
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
@@ -190,10 +342,25 @@ def save_checkpoint(cfg, model, optimizer, epoch, loss, path=None):
     }
 
     save_path = path or cfg.output_checkpoint
-    torch.save(checkpoint, save_path)
 
-def build_report(network_config, loss_dict, acc_dict):
-    print("\n===== EVALUATION REPORT =====")
+    try:
+        torch.save(checkpoint, save_path)
+    except OSError as exc:
+        raise TrainingError(f"Checkpoint konnte nicht gespeichert werden unter {save_path}: {exc}") from exc
+
+
+def build_report(
+    network_config: dict[str, dict],
+    loss_dict: dict[str, float],
+    acc_dict: dict[str, float],
+) -> pd.DataFrame:
+    """Baut eine tabellarische Übersicht aus Accuracy und Loss je Feld.
+ 
+    Returns:
+        DataFrame mit den Spalten field, accuracy, loss.
+    """
+
+    logger.info("Evaluierungsbericht:")
 
     report = []
 
@@ -208,7 +375,25 @@ def build_report(network_config, loss_dict, acc_dict):
 
     return df
 
-def run_training(cfg: TrainConfig):
+def run_training(cfg: TrainConfig) -> None:
+    """Führt den vollständigen Trainingsablauf für das Multi-Head-Modell aus.
+ 
+    Schritte: Daten laden und aufbereiten, DataLoader bauen, Modell
+    trainieren und je Epoche validieren, besten Checkpoint tracken,
+    abschließend auf dem Testdatensatz evaluieren und den Trainingsverlauf
+    als CSV speichern.
+ 
+    Args:
+        cfg: Trainingskonfiguration.
+ 
+    Raises:
+        DataPreparationError: Wenn die Daten nicht aufbereitet werden können.
+        TrainingError: Wenn das Training oder das Speichern eines
+            Checkpoints fehlschlägt.
+        ModelLoadError: Wenn der beste Checkpoint nach dem Training nicht
+            wieder geladen werden kann.
+    """
+
     device = get_device()
 
     dataset = get_cleaned_dataset()
@@ -226,7 +411,7 @@ def run_training(cfg: TrainConfig):
         num_warmup_steps=total_steps // 10,
         num_training_steps=total_steps
     )
-    print("\nTraining started")
+    logger.info("Training gestartet.")
     
     evaluator = MultiHeadEvaluator(cfg.network_config)
 
@@ -268,7 +453,7 @@ def run_training(cfg: TrainConfig):
         history.append(row)
 
         report = build_report(cfg.network_config, loss_dict, acc_dict)
-        print(report)
+        logger.info("\n%s", report)
         evaluator.error_analyzer.report(top_n=3)
 
         tracker.update(
@@ -281,7 +466,11 @@ def run_training(cfg: TrainConfig):
 
     tracker.summary()
 
-    best_checkpoint = torch.load(cfg.best_checkpoint, map_location=device, weights_only=False)
+    try:
+        best_checkpoint = torch.load(cfg.best_checkpoint, map_location=device, weights_only=False)
+    except Exception as exc:
+        raise ModelLoadError(f"Bester Checkpoint konnte nicht geladen werden: {exc}") from exc
+
     model.load_state_dict(best_checkpoint["model_state_dict"])
 
     test_loss, test_loss_dict, test_acc_dict, test_exact, test_partial = evaluate_epoch(
@@ -305,7 +494,9 @@ def run_training(cfg: TrainConfig):
         for field, value in test_acc_dict.items():
             history[-1][f"test_{field}_acc"] = value
 
-    print(f"\n✓ Training completed. Best checkpoint saved to: {cfg.best_checkpoint}")
-    pd.DataFrame(history).to_csv("training_history.csv", index=False)
-    
-    
+    try:
+        pd.DataFrame(history).to_csv("training_history.csv", index=False)
+    except OSError as exc:
+        logger.error("Trainingsverlauf konnte nicht als CSV gespeichert werden: %s", exc)
+ 
+    logger.info("Training abgeschlossen. Bester Checkpoint gespeichert unter: %s", cfg.best_checkpoint)

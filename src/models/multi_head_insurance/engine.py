@@ -1,11 +1,28 @@
+"""Trainings- und Evaluierungslogik für das Multi-Head-Klassifikationsmodell.
+ 
+Enthält die Metrik-Berechnung je Feld (FieldEvaluator), die Aggregation
+über alle Felder (MultiHeadEvaluator), eine einfache Fehleranalyse
+(ErrorAnalyzer) sowie die evaluate()-Funktion für eine vollständige
+Validierungs-/Test-Schleife.
+"""
+
+import logging
 import torch
 from collections import deque
+from torch.utils.data import DataLoader
+ 
+logger = logging.getLogger(__name__)
+
 
 class ErrorAnalyzer:
-    def __init__(self):
-        self.errors = []
+    """Sammelt Fehlklassifikationen während der Evaluierung zur späteren Analyse."""
+
+    def __init__(self) -> None:
+        self.errors: list[dict[str, torch.Tensor]] = []
     
-    def update(self, field, pred, true, input_text=None):
+    def update(self, field: str, pred: torch.Tensor, true: torch.Tensor, input_text: str = None) -> None:
+        """Speichert eine Gruppe von Fehlklassifikationen für ein Feld."""
+
         self.errors.append({
             "field": field,
             "pred": pred.detach().cpu(),
@@ -13,9 +30,15 @@ class ErrorAnalyzer:
             "input": input_text
         })
 
-    def report(self, top_n=5):
+    def report(self, top_n: int = 5) -> None:
+        """Loggt eine Zusammenfassung der häufigsten Fehlklassifikationen je Feld.
+ 
+        Args:
+            top_n: Maximale Anzahl der ausgegebenen Beispiele je Feld.
+        """
+
         if not self.errors:
-            print("No errors recorded.")
+            logger.info("Keine Fehler erfasst.")
             return
 
         from collections import defaultdict
@@ -23,7 +46,7 @@ class ErrorAnalyzer:
         for e in self.errors:
             by_field[e["field"]].append(e)
 
-        print("\n===== ERROR ANALYSIS =====")
+        logger.info("Fehleranalyse:")
         for field, errs in by_field.items():
             all_pairs = []
             for e in errs:
@@ -32,23 +55,29 @@ class ErrorAnalyzer:
                 for p, t in zip(preds, trues):
                     all_pairs.append((p, t))
 
-            print(f"\n[{field}] — {len(all_pairs)} misclassified")
-            for p, t in all_pairs[:top_n]:  # ← top_n строк
-                print(f"  pred={p}  true={t}")
+            logger.info("[%s] — %d falsch klassifiziert", field, len(all_pairs))
+            for p, t in all_pairs[:top_n]:
+                logger.info("  pred=%s  true=%s", p, t)
 
 class FieldEvaluator:
-    def __init__(self, field_type):
+    """Berechnet die Accuracy für ein einzelnes Zielfeld über mehrere Batches hinweg."""
+
+    def __init__(self, field_type: str) -> None:
         self.field_type = field_type
         self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
+        """Setzt die akkumulierten Zähler und den Fehler-Cache zurück."""
+
         self.correct = 0
         self.total = 0
         
         self.pred_cache = deque(maxlen=1000)
         self.true_cache = deque(maxlen=1000)
 
-    def update(self, pred, true, mask=None):
+    def update(self, pred: torch.Tensor, true: torch.Tensor, mask: torch.Tensor | None = None) -> None:
+        """Aktualisiert die Zähler anhand eines Batches von Vorhersagen."""
+
         if mask is not None and mask.sum() == 0:
             return
         pred_cls = pred.argmax(-1)
@@ -65,11 +94,15 @@ class FieldEvaluator:
             self.pred_cache.append(pred_cls[wrong].detach().cpu())
             self.true_cache.append(true[wrong].detach().cpu())
 
-    def compute(self):
+    def compute(self) -> float:
+        """Gibt die bisher akkumulierte Accuracy zurück."""
+
         return self.correct / max(self.total, 1)
 
 class MultiHeadEvaluator:
-    def __init__(self, network_config):
+    """Aggregiert Metriken (Loss, Accuracy, Exact-Match, Partial-Score) über alle Köpfe."""
+
+    def __init__(self, network_config: dict[str, dict]) -> None:
         self.fields = {
             k: FieldEvaluator(v["type"])
             for k, v in network_config.items()
@@ -78,7 +111,16 @@ class MultiHeadEvaluator:
         self.total_loss = 0.0
         self.total_count = 0
 
-    def update(self, predictions, targets, loss, bs, input_text=None):
+    def update(
+        self,
+        predictions: dict[str, torch.Tensor],
+        targets: dict[str, torch.Tensor],
+        loss: torch.Tensor,
+        bs: int,
+        input_text: str | None = None,
+    ) -> None:
+        """Aktualisiert alle Feld-Evaluatoren und den Fehler-Analyzer mit einem Batch."""
+
         self.total_loss += loss.item() * bs
         self.total_count += bs
 
@@ -109,13 +151,17 @@ class MultiHeadEvaluator:
                         input_text=input_text
                     )
 
-    def compute(self):
+    def compute(self) -> dict[str, float]:
+        """Gibt die Accuracy je Feld als Dictionary zurück."""
+
         return {
             field: ev.compute()
             for field, ev in self.fields.items()
         }
     
-    def reset(self):
+    def reset(self) -> None:
+        """Setzt alle Feld-Evaluatoren, den Verlust und den Fehler-Analyzer zurück."""
+
         self.total_loss = 0.0
         self.total_count = 0
         self.error_analyzer = ErrorAnalyzer()
@@ -123,7 +169,14 @@ class MultiHeadEvaluator:
         for ev in self.fields.values():
             ev.reset()
 
-    def exact_match(self, predictions, targets, reg_rel_threshold=0.10):
+    def exact_match(
+        self,
+        predictions: dict[str, torch.Tensor],
+        targets: dict[str, torch.Tensor],
+        reg_rel_threshold: float = 0.10,
+    ) -> float:
+        """Berechnet den Anteil der Beispiele, bei denen ALLE Felder korrekt vorhergesagt wurden."""
+
         n = len(next(iter(targets.values())))
         ok = 0
         total = 0
@@ -153,7 +206,14 @@ class MultiHeadEvaluator:
 
         return ok / max(total, 1)
     
-    def partial_score(self, predictions, targets, reg_rel_threshold=0.10):
+    def partial_score(
+        self,
+        predictions: dict[str, torch.Tensor],
+        targets: dict[str, torch.Tensor],
+        reg_rel_threshold: float = 0.10,
+    ) -> float:
+        """Berechnet den durchschnittlichen Anteil korrekt vorhergesagter Felder je Beispiel."""
+
         n = len(next(iter(targets.values())))
         scores = []
 
@@ -175,7 +235,26 @@ class MultiHeadEvaluator:
 
         return sum(scores) / max(len(scores), 1)
 
-def evaluate(model, dataloader, criterion, device, evaluator: MultiHeadEvaluator):
+def evaluate(
+    model: torch.nn.Module,
+    dataloader: DataLoader,
+    criterion: torch.nn.Module,
+    device: torch.device,
+    evaluator: MultiHeadEvaluator,
+) -> tuple[float, dict[str, float], dict[str, float], float, float]:
+    """Führt eine vollständige Evaluierungsschleife über einen DataLoader aus.
+ 
+    Args:
+        model: Zu evaluierendes Modell (wird in den eval-Modus versetzt).
+        dataloader: DataLoader für den zu evaluierenden Split.
+        criterion: Verlustfunktion.
+        device: Zielgerät für die Berechnung.
+        evaluator: MultiHeadEvaluator-Instanz zur Metrik-Aggregation.
+ 
+    Returns:
+        Tupel (avg_loss, loss_dict, acc_dict, exact_match, partial_score).
+    """
+
     model.eval()
     evaluator.reset()
 

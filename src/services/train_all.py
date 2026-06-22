@@ -12,13 +12,23 @@ Jeder Schritt kann einzeln übersprungen werden (z.B. wenn die DB
 bereits befüllt ist oder ein Modell schon trainiert wurde) — einfach
 das entsprechende RUN_*-Flag unten auf False setzen.
 
+Jeder Schritt läuft als eigener Subprozess (siehe run_step()), damit ein
+Fehler in einem Schritt (z. B. ein Absturz beim Modelltraining) den
+Gesamtprozess nicht durch einen gemeinsamen, geteilten Zustand
+verfälschen kann.
+
 Ausführen aus dem PROJEKTORDNER:
     python scripts/train_all.py
 """
 
+import logging
 import subprocess
 import sys
 from pathlib import Path
+
+from src.logging_config import setup_logging
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -30,18 +40,28 @@ RUN_TRAIN_CNN = True
 RUN_TRAIN_REGRESSION = True
 
 
-def run_step(title: str, command: list[str]):
+def run_step(title: str, command: list[str]) -> None:
+    """Führt einen einzelnen Pipeline-Schritt als Subprozess aus.
+
+    Args:
+        title: Anzeigename des Schritts (für die Konsolenausgabe).
+        command: Auszuführender Befehl (z. B. [sys.executable, "-m", "..."]).
+
+    Beendet den Gesamtprozess mit Exit-Code 1, falls der Subprozess
+    fehlschlägt (returncode != 0).
+    """
     print(f"\n{'=' * 70}")
     print(f"  {title}")
     print(f"{'=' * 70}")
     result = subprocess.run(command, cwd=PROJECT_ROOT)
     if result.returncode != 0:
-        print(f"\n❌ Schritt fehlgeschlagen: {title}")
+        logger.error("Schritt fehlgeschlagen: %s", title)
         sys.exit(1)
-    print(f"✓ {title} abgeschlossen")
+    logger.info("%s abgeschlossen.", title)
 
 
-def main():
+def main() -> None:
+    """Führt alle aktivierten Schritte der Trainings-Pipeline der Reihe nach aus."""
     if RUN_LOAD_INSURANCE_DATA:
         run_step(
             "1/5  Versicherungsdaten laden (CSV -> PostgreSQL)",
@@ -73,10 +93,11 @@ def main():
         )
 
     print("\n" + "=" * 70)
-    print("  ✓ Vollständige Pipeline abgeschlossen.")
+    print("  Vollständige Pipeline abgeschlossen.")
     print("    Modelle liegen in checkpoints/, bereit für dashboard.py / pipeline.py")
     print("=" * 70)
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()

@@ -1,6 +1,17 @@
+"""Generator für synthetische, deutschsprachige Unfallbeschreibungen.
+ 
+Erzeugt aus einer Versicherungs-Zeile (und optional einem Fahrzeug aus
+dem Katalog) eine natürlichsprachliche Unfallbeschreibung samt den
+zugehörigen Zielfeld-Labels für das Multi-Head-Training. Variiert dabei
+Detailgrad, Satzreihenfolge und Formulierung, um eine vielfältige
+Trainingsbasis zu erzeugen.
+"""
+
+import logging
 import random
 import pandas as pd
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Any
 from src.ml_config import VALID_CASE_TYPES
 from src.utils.fake_data_generators.accident_text_constants import (
     BODILY_INJURIES_INFO,
@@ -23,9 +34,17 @@ from src.utils.fake_data_generators.accident_text_constants import (
     YEAR_STANDALONE_TEMPLATES,
 )
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class GenerationContext:
+    """Zwischenzustand für die Generierung einer einzelnen Unfallbeschreibung.
+ 
+    Bündelt alle pro Beispiel zufällig gewählten Eigenschaften (Fahrzeug,
+    Fallart, Detailgrad, Satzaufbau-Strategie), damit die einzelnen
+    privaten Hilfsmethoden konsistent auf denselben Werten arbeiten.
+    """
+
     make: str
     model: str
     year: int
@@ -34,32 +53,80 @@ class GenerationContext:
     detail_level: str
     strategy: str
     with_year: bool
-    context_vars: dict
+    context_vars: dict[str, str]
     incident_phrase: str
     damage_string: str
 
 
 class AccidentDataGenerator:
-    def __init__(self, target_fields: list[str]):
+    """Erzeugt synthetische deutschsprachige Unfallbeschreibungen samt Labels."""
+
+    def __init__(self, target_fields: list[str]) -> None:
+        """Initialisiert den Generator mit den zu erzeugenden Zielfeldern.
+ 
+        Args:
+            target_fields: Liste der Feldnamen, für die Labels erzeugt
+                werden sollen (siehe TARGET_FIELDS in ml_config.py).
+        """
+
         self.target_fields = target_fields
 
-    def generate_text(self, row: dict, seed: int = None) -> str:
+    def generate_text(self, row: dict[str, any], seed: int | None = None) -> str:
+        """Erzeugt nur den Beschreibungstext (ohne Labels) für eine Zeile.
+ 
+        Args:
+            row: Versicherungs-Zeile als Dictionary.
+            seed: Optionaler Zufalls-Seed für Reproduzierbarkeit.
+ 
+        Returns:
+            Generierte Unfallbeschreibung.
+        """
+
         rng = random.Random(seed) if seed is not None else random.Random()
         text, _ = self._generate(row, rng)
         return text
 
-    def generate_with_labels(self, row: dict, seed: int = None) -> tuple[str, dict]:
+    def generate_with_labels(self, row: dict[str, Any], seed: int | None = None) -> tuple[str, dict[str, Any]]:
+        """Erzeugt Beschreibungstext und zugehörige Labels für eine Zeile.
+ 
+        Args:
+            row: Versicherungs-Zeile als Dictionary.
+            seed: Optionaler Zufalls-Seed für Reproduzierbarkeit.
+ 
+        Returns:
+            Tupel (text, labels).
+        """
+
         rng = random.Random(seed) if seed is not None else random.Random()
         return self._generate(row, rng)
 
     def generate_with_labels_and_vehicles(
-        self, row: dict, vehicle_ref: tuple[str, str, int], seed: int = None
-    ):
+        self, row: dict[str, Any], vehicle_ref: tuple[str, str, int], seed: int | None = None
+    ) -> tuple[str, dict[str, Any]]:
+        """Erzeugt Beschreibungstext und Labels für eine Zeile mit vorgegebenem Fahrzeug.
+ 
+        Im Unterschied zu generate_with_labels() wird das Fahrzeug nicht
+        aus der Zeile selbst gelesen, sondern explizit übergeben (z. B.
+        um Fahrzeuge gleichmäßig über den Katalog zu verteilen, siehe
+        data_orchestrator.get_descriptions_labels_with_new_vehicles()).
+ 
+        Args:
+            row: Versicherungs-Zeile als Dictionary.
+            vehicle_ref: Tupel (make, model, year) des zu verwendenden
+                Fahrzeugs.
+            seed: Optionaler Zufalls-Seed für Reproduzierbarkeit.
+ 
+        Returns:
+            Tupel (text, labels).
+        """
+
         rng = random.Random(seed) if seed is not None else random.Random()
         ctx = self._create_generation_context(row, rng, vehicle=vehicle_ref)
         return self._generate(row, rng, ctx)
 
-    def _generate(self, row: dict, rng: random.Random, ctx=None) -> tuple[str, dict]:
+    def _generate(self, row: dict[str, Any], rng: random.Random, ctx: GenerationContext | None = None) -> tuple[str, dict[str, Any]]:
+        """Baut Beschreibungstext und Labels aus dem Generierungskontext zusammen."""
+
         if ctx is None:
             ctx = self._create_generation_context(row, rng)
 
@@ -72,10 +139,12 @@ class AccidentDataGenerator:
 
     def _create_generation_context(
         self,
-        row: dict,
+        row: dict[str, Any],
         rng: random.Random,
         vehicle: tuple[str, str, int] | None = None,
     ) -> GenerationContext:
+        """Wählt zufällig alle Eigenschaften für ein Trainingsbeispiel aus."""
+
         if vehicle:
             make, model, year = vehicle
         else:
@@ -117,8 +186,10 @@ class AccidentDataGenerator:
         )
 
     def _generate_context_fields(
-        self, config: dict, severity_bucket: str, detail_level: str, rng: random.Random
-    ) -> dict:
+        self, config: dict[str, Any], severity_bucket: str, detail_level: str, rng: random.Random
+    ) -> dict[str, str]:
+        """Wählt je nach Detailgrad zusätzliche Kontextfelder (Airbags, Wetter, Tageszeit, Abschleppen)."""
+
         ctx = {k: "" for k in ["airbags", "weather", "time_of_day", "time_of_day_cap", "tow"]}
 
         if detail_level == "minimal":
@@ -150,7 +221,9 @@ class AccidentDataGenerator:
 
         return ctx
 
-    def _get_labels(self, ctx: GenerationContext, row: dict) -> dict:
+    def _get_labels(self, ctx: GenerationContext, row: dict[str, Any]) -> dict[str, Any]:
+        """Leitet die Zielfeld-Labels aus dem Kontext und der Versicherungs-Zeile ab."""
+
         labels = {}
         vehicle_present = ctx.strategy != "no_vehicle"
         year_present = vehicle_present and ctx.with_year
@@ -186,6 +259,8 @@ class AccidentDataGenerator:
         return labels
 
     def _build_core_sentences(self, ctx: GenerationContext, rng: random.Random) -> list[str]:
+        """Baut die Kernsätze (Fahrzeug, Ereignis, Schaden) je nach gewählter Strategie auf."""
+
         damage_sentence = rng.choice(DAMAGE_INTRO_TEMPLATES).format(damage=ctx.damage_string)
         event_sentence = rng.choice(EVENT_STANDALONE_TEMPLATES).format(
             incident_phrase=ctx.incident_phrase
@@ -240,9 +315,11 @@ class AccidentDataGenerator:
         self,
         core_parts: list[str],
         ctx: GenerationContext,
-        row: dict,
+        row: dict[str, Any],
         rng: random.Random,
     ) -> list[str]:
+        """Fügt Kontext (Wetter, Tageszeit) und Detail-Sätze (Zeugen, Verletzte, Schäden) ein."""
+
         # Make incident scope explicit so the model can learn incident_type and
         # number_of_vehicles_involved from text, not only from weak correlations.
         incident_scope_sentence = self._build_incident_scope_sentence(row, ctx.detail_level, rng)
@@ -302,7 +379,9 @@ class AccidentDataGenerator:
 
         return core_parts
 
-    def _resolve_case_type(self, row: dict) -> str:
+    def _resolve_case_type(self, row: dict[str, Any]) -> str:
+        """Bestimmt die Fallart (z. B. "Front Collision") aus collision_type/incident_type."""
+
         incident_type = str(row.get("incident_type", "")).strip()
         collision_type = str(row.get("collision_type", "")).strip()
 
@@ -312,7 +391,9 @@ class AccidentDataGenerator:
 
         return "Side Collision"
 
-    def _generate_damage_string(self, damage_cfg: dict, rng: random.Random) -> str:
+    def _generate_damage_string(self, damage_cfg: dict[str, Any], rng: random.Random) -> str:
+        """Wählt eine zufällige Anzahl von Schadensbegriffen aus dem konfigurierten Pool."""
+
         damage_count = rng.randint(*damage_cfg["count"])
         sampled = rng.sample(damage_cfg["pool"], min(damage_count, len(damage_cfg["pool"])))
         return ", ".join(sampled)
@@ -320,6 +401,8 @@ class AccidentDataGenerator:
     def _determine_strategy(
         self, make: str, model: str, detail_level: str, rng: random.Random
     ) -> str:
+        """Wählt zufällig, wie das Fahrzeug im Text platziert wird (oder ob gar nicht)."""
+        
         if not (make or model) or (detail_level == "noisy" and rng.random() < 0.40):
             return "no_vehicle"
 
@@ -330,6 +413,8 @@ class AccidentDataGenerator:
         )[0]
 
     def _build_vehicle_ref(self, ctx: GenerationContext, rng: random.Random) -> str:
+        """Formuliert die Fahrzeugreferenz (mit oder ohne Baujahr)."""
+
         if ctx.with_year and ctx.year:
             return rng.choice(VEHICLE_REF_WITH_YEAR).format(
                 make=ctx.make, model=ctx.model, year=ctx.year
@@ -343,6 +428,8 @@ class AccidentDataGenerator:
         weather: str,
         rng: random.Random,
     ) -> str:
+        """Formuliert einen Satz zu Tageszeit und/oder Wetterlage."""
+
         if time_of_day and weather:
             return rng.choice(
                 [
@@ -371,10 +458,12 @@ class AccidentDataGenerator:
 
     def _build_incident_scope_sentence(
         self,
-        row: dict,
+        row: dict[str, Any],
         detail_level: str,
         rng: random.Random,
     ) -> str:
+        """Formuliert einen Satz zur Anzahl der beteiligten Fahrzeuge, falls bekannt."""
+        
         if detail_level == "minimal":
             return ""
 
