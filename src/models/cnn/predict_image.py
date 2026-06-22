@@ -12,7 +12,7 @@ import tensorflow as tf
 # ---------------------------------------------------------------------
 # Konfiguration
 # ---------------------------------------------------------------------
-from src.ml_config import MODEL_PATH, CLASSES_PATH, SEVERITY_DE, IMAGE_SIZE
+from src.models.cnn.cnn_config import MODEL_PATH, CLASSES_PATH, SEVERITY_DE, IMAGE_SIZE
 
 
 @lru_cache(maxsize=1)
