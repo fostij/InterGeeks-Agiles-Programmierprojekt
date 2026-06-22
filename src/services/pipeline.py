@@ -12,6 +12,8 @@ Dependency-Inversion-Prinzip).
 
 import logging
 from dataclasses import dataclass, field
+import os
+import tempfile
 from typing import Any
 import joblib
 import pandas as pd
@@ -126,6 +128,7 @@ class Pipeline:
         self,
         text: str = "",
         photo_path: str | None = None,
+        photo_bytes: bytes | None = None,
         source: str = "dashboard",
     ) -> PredictionResult:
         """Führt einen vollständigen Pipeline-Durchlauf für eine Anfrage aus.
@@ -139,6 +142,7 @@ class Pipeline:
         Args:
             text: Unfallbeschreibung als Rohtext. Leer, falls nicht vorhanden.
             photo_path: Pfad zu einem Foto des Schadens, falls vorhanden.
+            photo_bytes: Bytes des Fotos, falls vorhanden.
             source: Herkunft der Anfrage (z. B. "dashboard", "email").
  
         Returns:
@@ -150,25 +154,44 @@ class Pipeline:
             InferenceError: Wenn die Multi-Head-Textanalyse fehlschlägt.
         """
 
-        request_id = self._save_request(text, photo_path, source)
-        result = PredictionResult(request_id=request_id, fields={})
+        tmp_file_path: str | None = None
+        if photo_bytes is not None and photo_path is None:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                tmp.write(photo_bytes)
+                tmp_file_path = tmp.name
+            photo_path = tmp_file_path
+            logger.debug("Foto-Bytes in temporäre Datei geschrieben: %s", tmp_file_path)
 
-        if text and text.strip():
-            self._run_multihead(text, result)
+        hat_foto = photo_path is not None
 
-        if photo_path:
-            self._run_cnn(photo_path, result)
-
-        self._resolve_severity(result)
-
-        if self.regression_model is not None and result.final_severity is not None:
-            self._run_regression(result)
-
+        try:
+            request_id = self._save_request(text, hat_foto, source)
+            result = PredictionResult(request_id=request_id, fields={})
+ 
+            if text and text.strip():
+                self._run_multihead(text, result)
+ 
+            if photo_path:
+                self._run_cnn(photo_path, result)
+ 
+            self._resolve_severity(result)
+ 
+            if self.regression_model is not None and result.final_severity is not None:
+                self._run_regression(result)
+ 
+        finally:
+            if tmp_file_path is not None:
+                try:
+                    os.unlink(tmp_file_path)
+                    logger.debug("Temporäre Foto-Datei gelöscht: %s", tmp_file_path)
+                except OSError as exc:
+                    logger.warning("Temporäre Datei konnte nicht gelöscht werden: %s", exc)
+ 
         return result
 
     # ── Stage 1: persist the raw incoming request ───────────────────
 
-    def _save_request(self, text: str, photo_path: str | None, source: str) -> int:
+    def _save_request(self, text: str, hat_foto: bool, source: str) -> int:
         """Speichert die eingehende Rohanfrage über das Repository und liefert die anfrage_id.
  
         Raises:
@@ -176,7 +199,7 @@ class Pipeline:
                 repository.save_request() durchgereicht).
         """
 
-        return self.repository.save_request(text, photo_path, source)
+        return self.repository.save_request(text, hat_foto, source)
 
     # ── Stage 2: multi-head text -> fields (+ severity confidence) ──
 
@@ -208,7 +231,7 @@ class Pipeline:
 
     # ── Stage 3: photo -> severity (CNN), independent of text ───────
 
-    def _run_cnn(self, photo_path: str, result: PredictionResult) -> None:
+    def _run_cnn(self, photo_bytes: bytes, result: PredictionResult, photo_path: str | None = None) -> None:
         """Führt die optionale CNN-Bildanalyse aus und speichert das Ergebnis.
  
         CNN ist eine optionale Stufe: Sind die CNN-Abhängigkeiten nicht
@@ -226,7 +249,7 @@ class Pipeline:
             return
 
         try:
-            label_de, confidence = predict_severity(photo_path)
+            label_de, confidence = predict_severity(photo_bytes=photo_bytes, photo_path=photo_path)
         except Exception as exc:
             logger.error("CNN-Inferenz fehlgeschlagen (anfrage_id=%d): %s", result.request_id, exc)
             return
