@@ -1,6 +1,9 @@
 import pandas as pd
 from src.utils.data_loader import get_insurance_dataset
 from src.ml_config import (
+from src.utils.data_loader import get_insurence_dataset
+from src.ml_config import (
+    INSURANCE_DATASET_PATH,
     TARGET_FIELDS,
     PREDICTION_FIELD,
 )

@@ -64,15 +64,7 @@ BASE_AMOUNT = {
     "Major Damage": 62_000,
     "Total Loss": 65_000,
 }
-
-# Abbildung der CNN-Klassen auf die Schwere-Kategorien des Datensatzes.
-# So spricht das Foto-Ergebnis dieselbe "Sprache" wie die Textanalyse.
-CNN_TO_SEVERITY = {
-    "01-minor": "Minor Damage",
-    "02-moderate": "Major Damage",
-    "03-severe": "Total Loss",
-}
-
+from src.ml_config import CNN_TO_SEVERITY
 
 # ---------------------------------------------------------------------
 # 2) Datensatz laden (für die Vergleichswerte im Diagramm)
