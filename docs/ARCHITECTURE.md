@@ -249,7 +249,7 @@ CNN-Abhängigkeiten (TensorFlow) nicht installiert, wird die Stufe
 
 ### `src/services/pipeline.py`
 `Pipeline` ist der zentrale Backend-Einstiegspunkt für jeden Client
-(Dashboard, zukünftiger E-Mail-Worker, ...). Führt für eine eingehende
+(Dashboard, E-Mail-Worker, CLI). Führt für eine eingehende
 Anfrage (Text und/oder Foto) nacheinander aus:
 
 1. Rohanfrage speichern (`PipelineResultRepository.save_request`)
@@ -297,11 +297,6 @@ Jahr/Monat/Tag, füllt numerische Lücken mit dem Median und kategoriale
 Lücken mit dem Modus, entfernt nicht benötigte Spalten
 (`FIELDS_TO_DELETE`) und korrigiert bekannte Schreibfehler bei
 Fahrzeugmarken (`fix_name_errors()`).
-
-### `src/utils/descriptive_statistics.py`
-Berechnet Mittelwert und Standardabweichung für ausgewählte numerische
-Felder (`auto_year`, `number_of_vehicles_involved`, `witnesses`), z. B.
-zur Normalisierung oder für die explorative Datenanalyse.
 
 ### `src/utils/labels_encoder.py`
 `prepare_pipeline_and_save_jsonl()` erzeugt für jedes Zielfeld einen
