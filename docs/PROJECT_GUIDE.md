@@ -112,10 +112,10 @@ GermanInsuranceClassifier
     ├── incident_state (classification: 8 categories)
     ├── collision_type (classification: 4 categories)
     ├── property_damage (classification: 3 categories)
-    ├── witnesses (regression)
+    ├── witnesses (classification)
     ├── authorities_contacted (classification: 5 categories)
     ├── police_report_available (classification: 3 categories)
-    ├── number_of_vehicles_involved (regression)
+    ├── number_of_vehicles_involved (classification)
     └── bodily_injuries (classification: 4 categories)
 ```
 
