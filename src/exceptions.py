@@ -64,3 +64,10 @@ class PersistenceError(ProjectError):
     Beispiele: Datenbankverbindung nicht verfügbar, Constraint-Verletzung
     beim Insert, Transaktion konnte nicht committet werden.
     """
+
+class EmailParsingError(ProjectError):
+    """Wird ausgelöst, wenn eine eingehende E-Mail nicht geparst werden kann.
+ 
+    Beispiele: Nachricht hat keinen Textkörper, MIME-Struktur ist
+    beschädigt, Absenderadresse fehlt.
+    """
