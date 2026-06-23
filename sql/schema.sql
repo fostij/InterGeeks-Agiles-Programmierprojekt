@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS anfragen (
     erstellt_am      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     quelle           VARCHAR(20),       -- 'dashboard' | 'email' | 'chat'
     rohtext          TEXT,
-    hat_foto         BOOLEAN           DEFAULT FALSE,  -- TRUE falls ein Foto analysiert wurde
+    hat_foto         BOOLEAN           DEFAULT FALSE  -- TRUE falls ein Foto analysiert wurde
 );
 
 -- ---------------------------------------------------------------------
