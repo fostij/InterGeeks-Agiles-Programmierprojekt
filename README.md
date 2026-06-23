@@ -418,9 +418,9 @@ Beträge des Originaldatensatzes (USD) werden im Projekt als EUR-Testwerte inter
 
 ## 👥 Team
 
-Oleg Fostii
-Anton Duschak
-Bernard Turikumana
+* Oleg Fostii
+* Anton Duschak
+* Bernard Turikumana
 
 Projektarbeit im Rahmen des Agilen
 Programmierprojekts an der Hochschule Hannover – Fakultät III, Medien, Information
