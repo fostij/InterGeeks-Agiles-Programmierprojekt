@@ -102,7 +102,7 @@ class EmailWorker:
             )
 
     def _build_response(self, result: PredictionResult) -> str:
-        """Formatiert das PredictionResult als lesbaren Antworttext.
+        """Formatiert das PredictionResult als strukturierten Antworttext.
 
         Args:
             result: Ergebnis eines Pipeline-Durchlaufs.
@@ -110,42 +110,105 @@ class EmailWorker:
         Returns:
             Formatierter Antworttext für die Antwort-Mail.
         """
-        amount = (
-            f"{result.predicted_amount:,.2f} EUR"
-            if result.predicted_amount is not None
-            else "Nicht verfügbar"
-        )
+        SEVERITY_DE = {
+            "Trivial Damage": "Bagatellschaden",
+            "Minor Damage":   "Leichter Schaden",
+            "Major Damage":   "Erheblicher Schaden",
+            "Total Loss":     "Totalschaden",
+        }
 
-        severity = result.final_severity or "Nicht bestimmt"
+        # ── Kostenschätzung ───────────────────────────────────────────
+        if result.predicted_amount is not None:
+            amount_line = f"{result.predicted_amount:,.2f} EUR".replace(",", "X").replace(".", ",").replace("X", ".")
+            amount_section = (
+                "╔══════════════════════════════════════════════════╗\n"
+                f"║  Geschätzte Schadenhöhe:  {amount_line:<22}║\n"
+                "╚══════════════════════════════════════════════════╝\n"
+            )
+        else:
+            amount_section = (
+                "Geschätzte Schadenhöhe: Nicht verfügbar\n"
+                "(Das Regressionsmodell benötigt eine bestimmte Schadensschwere.)\n"
+            )
 
-        confidence = (
-            f"{result.text_confidence:.1%}"
-            if result.text_confidence is not None
-            else "–"
-        )
+        # ── Schadensschwere ───────────────────────────────────────────
+        severity_raw = result.final_severity or "Unbekannt"
+        severity_de = SEVERITY_DE.get(severity_raw, severity_raw)
+        source_label = "Bildanalyse (CNN)" if result.severity_source == "photo" else "Textanalyse (NLP)"
 
-        source_label = (
-            "Textanalyse" if result.severity_source == "text" else "Bildanalyse"
-        )
+        severity_section = f"  Schadensschwere:  {severity_de} ({severity_raw})\n"
+        severity_section += f"  Analysemethode:   {source_label}\n"
 
-        missing = (
-            ", ".join(result.missing_fields)
-            if result.missing_fields
-            else "keine"
-        )
+        if result.text_confidence is not None:
+            severity_section += f"  Textkonfidenz:    {result.text_confidence:.1%}\n"
+        if result.photo_confidence is not None:
+            severity_section += f"  Fotokonfidenz:    {result.photo_confidence:.1%}\n"
 
+        # ── Extrahierte Felder ────────────────────────────────────────
+        FIELD_LABELS = {
+            "auto_make":                  "Fahrzeugmarke",
+            "auto_year":                  "Baujahr",
+            "incident_type":              "Unfallart",
+            "incident_severity":          "Schadensschwere",
+            "collision_type":             "Kollisionstyp",
+            "number_of_vehicles_involved":"Beteiligte Fahrzeuge",
+            "witnesses":                  "Zeugen",
+            "police_report_available":    "Polizeibericht",
+            "bodily_injuries":            "Verletzte",
+            "property_damage":            "Sachschaden Dritter",
+        }
+
+        if result.fields:
+            fields_lines = ""
+            for key, value in result.fields.items():
+                label = FIELD_LABELS.get(key, key)
+                display = "—" if value is None else str(value)
+                fields_lines += f"  {label:<26} {display}\n"
+        else:
+            fields_lines = "  Keine Felder extrahiert.\n"
+
+        if result.missing_fields:
+            missing_labels = [FIELD_LABELS.get(f, f) for f in result.missing_fields]
+            missing_note = (
+                f"\n  Hinweis: Folgende Angaben konnten nicht sicher bestimmt werden\n"
+                f"  und wurden nicht für die Prognose verwendet:\n"
+                f"  {', '.join(missing_labels)}\n"
+            )
+        else:
+            missing_note = ""
+
+        # ── Gesamte Mail zusammensetzen ───────────────────────────────
         return (
             "Sehr geehrte Damen und Herren,\n\n"
-            "vielen Dank für Ihre Schadensmeldung. "
-            "Hier ist das Ergebnis unserer automatisierten Analyse:\n\n"
-            f"  Geschätzte Schadenhöhe:  {amount}\n"
-            f"  Schweregrad:             {severity}\n"
-            f"  Konfidenz:               {confidence} ({source_label})\n"
-            f"  Fehlende Angaben:        {missing}\n\n"
-            "Bitte beachten Sie, dass es sich um eine vorläufige Schätzung handelt.\n"
-            "Ein Sachbearbeiter wird sich in Kürze bei Ihnen melden.\n\n"
+            "vielen Dank für Ihre Schadensmeldung. Wir haben Ihre Anfrage "
+            "automatisiert verarbeitet. Nachfolgend finden Sie die Ergebnisse "
+            "unserer Analyse.\n\n"
+            "──────────────────────────────────────────────────────\n"
+            " KOSTENSCHÄTZUNG\n"
+            "──────────────────────────────────────────────────────\n"
+            f"{amount_section}\n"
+            "──────────────────────────────────────────────────────\n"
+            " SCHADENSBEWERTUNG\n"
+            "──────────────────────────────────────────────────────\n"
+            f"{severity_section}\n"
+            "──────────────────────────────────────────────────────\n"
+            " EXTRAHIERTE FAHRZEUG- UND UNFALLDATEN\n"
+            "──────────────────────────────────────────────────────\n"
+            f"{fields_lines}"
+            f"{missing_note}\n"
+            "──────────────────────────────────────────────────────\n"
+            " WICHTIGER HINWEIS\n"
+            "──────────────────────────────────────────────────────\n"
+            "Bei dieser Analyse handelt es sich um eine vorläufige,\n"
+            "automatisierte Schätzung auf Basis der von Ihnen übermittelten\n"
+            "Informationen. Sie ersetzt keine abschließende Begutachtung\n"
+            "durch einen Sachverständigen.\n\n"
+            "Ein Sachbearbeiter wird Ihren Fall prüfen und sich in Kürze\n"
+            "mit Ihnen in Verbindung setzen.\n\n"
             "Mit freundlichen Grüßen\n"
-            "Ihr KFZ-Schadenprognose-System"
+            "Ihr KFZ-Schadenprognose-System\n"
+            "─────────────────────────────────────────────────────────────\n"
+            f"Anfrage-ID: {result.request_id} | Verarbeitung: automatisiert"
         )
 
 
@@ -165,7 +228,6 @@ if __name__ == "__main__":
         host=os.getenv("EMAIL_IMAP_HOST", ""),
         username=os.getenv("EMAIL_USERNAME", ""),
         password=os.getenv("EMAIL_PASSWORD", ""),
-        folder=os.getenv("EMAIL_IMAP_FOLDER", "INBOX"),
     )
     smtp = SmtpClient(
         host=os.getenv("EMAIL_SMTP_HOST", ""),
