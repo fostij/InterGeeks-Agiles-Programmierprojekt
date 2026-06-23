@@ -39,7 +39,7 @@ und **Streamlit-Dashboard**.
 > **Fragestellung:** Welche Faktoren beeinflussen die Schadenhöhe, und lässt sie
 > sich aus Schadensmeldung und Foto zuverlässig prognostizieren?
 >
-> **Zielvariablen:** `total_claim_amount` (Regression), `fraud_reported` (Klassifikation).
+> **Zielvariable:** `vehicle_claim` (Regression).
 
 ---
 
@@ -53,7 +53,6 @@ und **Streamlit-Dashboard**.
 | 🔗 **Einfluss- & Zusammenhangsanalyse** | Korrelationen und Einfluss der Variablen auf die Zielvariable |
 | 🧪 **Hypothesentests** | Formulierung, Voraussetzungsprüfung und Interpretation |
 | 🤖 **Regression** (Pflicht) | Vorhersage der Schadenhöhe, Vergleich mehrerer Modelle |
-| 🏷️ **Klassifikation** (Bonus) | Betrugserkennung (`fraud_reported`) mit mehreren Verfahren |
 | 🧠 **CNN-Bilderkennung** (Bonus) | Transfer Learning (MobileNetV2): Foto → Schadensschwere |
 | 🔎 **Automatisierte Textanalyse** (Bonus) | Multi-Head-Modell: Freitext → strukturierte Felder |
 | 🧩 **Zentrale Pipeline** | Ein Backend orchestriert alle Stufen für jeden Client |
