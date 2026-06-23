@@ -50,6 +50,14 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
 
     df["fraud_reported"] = df["fraud_reported"].map({"Y": True, "N": False})
 
+    # Jahresprämie: Komma als Dezimaltrennzeichen -> Punkt (Windows-Lokaleproblem)
+    df["policy_annual_premium"] = (
+        df["policy_annual_premium"]
+        .astype(str)
+        .str.replace(",", ".", regex=False)
+        .astype(float)
+    )
+
      # 1 Zeile = 1 Kunde + 1 Police + 1 Unfall -> gemeinsamer Schlüssel
     df["lfd_id"] = range(1, len(df) + 1)
 
