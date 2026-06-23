@@ -5,7 +5,7 @@
 from pathlib import Path
 
 # Pfade zum trainierten Modell und zu den Klassennamen
-MODEL_PATH = Path("src/models/cnn/model.keras")
+MODEL_PATH = Path("src/models/cnn/cnn_model.keras")
 CLASSES_PATH = Path("src/models/cnn/classes.json")
 
 # Bildgröße — muss in Training und Vorhersage identisch sein!

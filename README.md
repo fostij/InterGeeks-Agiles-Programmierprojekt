@@ -1,209 +1,231 @@
-<div align="center">
+# KFZ-Schadensprognose-System
 
-# 🚗 KFZ-Schadenprognose
-
-<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&duration=3000&pause=800&color=4CAF50&center=true&vCenter=true&width=640&lines=Data+Science+%26+KI-Workflow;Von+der+Datenbank+bis+zur+Web-Oberfläche;Schadenprognose+aus+Text+und+Bild" alt="Typing SVG" />
-
-<br/>
-
-![Python](https://img.shields.io/badge/Python-3.12-4CAF50?style=for-the-badge&logo=python&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Datenbank-4CAF50?style=for-the-badge&logo=postgresql&logoColor=white)
-![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-ORM-4CAF50?style=for-the-badge&logo=sqlalchemy&logoColor=white)
-![TensorFlow](https://img.shields.io/badge/TensorFlow-CNN-4CAF50?style=for-the-badge&logo=tensorflow&logoColor=white)
-![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-4CAF50?style=for-the-badge&logo=streamlit&logoColor=white)
-![Plotly](https://img.shields.io/badge/Plotly-Visualisierung-4CAF50?style=for-the-badge&logo=plotly&logoColor=white)
-
-**Gruppe InterGeeks · Hochschule Hannover · Fakultät III – Medien, Information und Design**
-
-</div>
+Ein KI-gestütztes System zur automatisierten Bewertung von Kfz-Schäden. Es kombiniert Textanalyse, Bildverarbeitung und Regressionsmodelle, um Schadenschweregrad und voraussichtliche Reparaturkosten vorherzusagen. Das System ist über drei Einstiegspunkte erreichbar: CLI, E-Mail-Worker und Streamlit-Dashboard.
 
 ---
 
-## 📋 Projektübersicht
+## Inhaltsverzeichnis
 
-Dieses Projekt setzt einen vollständigen **Data-Science- und KI-Workflow** rund um
-KFZ-Versicherungsschäden um – von der Datenhaltung über die Analyse bis zur
-Anwendung. Auf Basis eines offenen Datensatzes zu Versicherungsfällen wird die
-**erwartete Schadenhöhe** prognostiziert. Ergänzend bestimmt ein **CNN** die
-Schadensschwere aus einem Foto des beschädigten Fahrzeugs. Über ein
-**Streamlit-Dashboard** lassen sich Schadensmeldungen als Freitext eingeben und
-Fotos hochladen; das System extrahiert die relevanten Merkmale, speichert sie in
-der Datenbank und visualisiert das Ergebnis.
-
-> **Fragestellung:** Welche Faktoren beeinflussen die Schadenhöhe, und lässt sie
-> sich aus Schadensmeldung und Foto zuverlässig prognostizieren?
-> **Zielvariablen:** `total_claim_amount` (Regression), `fraud_reported` (Klassifikation).
+- [Voraussetzungen](#voraussetzungen)
+- [Installation](#installation)
+- [Umgebungsvariablen](#umgebungsvariablen)
+- [Modelle trainieren](#modelle-trainieren)
+- [Starten der Anwendung](#starten-der-anwendung)
+- [Projektstruktur](#projektstruktur)
 
 ---
 
-## ✨ Features
+## Voraussetzungen
 
-| Bereich | Umsetzung |
-| --- | --- |
-| 🗄️ **Datenhaltung** | Normalisiertes PostgreSQL-Schema (mehrere Tabellen, Fremdschlüssel, Indizes) |
-| 🔄 **ETL** | CSV einlesen, bereinigen (`?`→NULL), Typen umwandeln und in die DB laden |
-| 📊 **Deskriptive Statistik** | Lageparameter, Streuungsmaße, Verteilungen, Ausreißer, Datenqualität |
-| 🔗 **Einfluss- & Zusammenhangsanalyse** | Korrelationen und Einfluss der Variablen auf die Zielvariable |
-| 🧪 **Hypothesentests** | Formulierung, Voraussetzungsprüfung und Interpretation |
-| 🤖 **Regression** (Pflicht) | Vorhersage der Schadenhöhe, Vergleich mehrerer Modelle |
-| 🏷️ **Klassifikation** (Bonus) | Betrugserkennung (`fraud_reported`) mit mehreren Verfahren |
-| 🧠 **CNN-Bilderkennung** (Bonus) | Transfer Learning (MobileNetV2): Foto → Schadensschwere |
-| 🔎 **Automatisierte Textanalyse** | Extraktion relevanter Merkmale aus der Freitext-Schadensmeldung |
-| 🖥️ **Web-Oberfläche** (Bonus) | Streamlit-Dashboard: Text- und Foto-Eingabe, Speicherung, Prognose, Diagramm |
+- Python 3.10 oder höher
+- PostgreSQL (Datenbankname: `kfz_schaden`)
+- Internetzugang (für E-Mail-Funktionalität)
+
+Abhängigkeiten installieren:
+
+```bash
+pip install -r requirements.txt
+```
 
 ---
 
-## 🛠️ Tech-Stack
+## Installation
 
-- **Sprache:** Python 3.12
-- **Datenbank:** PostgreSQL · SQLAlchemy · psycopg2
-- **Datenverarbeitung:** pandas · NumPy
-- **Machine Learning:** scikit-learn
-- **Deep Learning:** TensorFlow / Keras (MobileNetV2)
-- **Visualisierung:** Plotly · Matplotlib
-- **Web-Oberfläche:** Streamlit
-- **Versionsverwaltung & Agile:** Git · GitHub · Jira (Scrum)
+```bash
+git clone https://github.com/fostij/InterGeeks-Agiles-Programmierprojekt.git
+cd InterGeeks-Agiles-Programmierprojekt
+pip install -r requirements.txt
+cp .env.example .env
+# .env mit eigenen Werten befüllen (siehe unten)
+```
 
 ---
 
-## 📁 Projektstruktur
+## Umgebungsvariablen
+
+Alle Konfigurationswerte werden über eine `.env`-Datei im Projektstammverzeichnis bereitgestellt. Eine Vorlage:
+
+```env
+# Datenbankverbindung (PostgreSQL)
+DB_USER=
+DB_PASSWORD=
+DB_HOST=
+DB_PORT=
+DB_NAME=kfz_schaden
+
+# E-Mail-Konfiguration
+EMAIL_IMAP_HOST=
+EMAIL_SMTP_HOST=
+EMAIL_SMTP_PORT=
+EMAIL_USE_STARTTLS=
+EMAIL_USERNAME=
+EMAIL_PASSWORD=
+EMAIL_POLL_INTERVAL=
+EMAIL_IMAP_FOLDER=
+```
+
+### Beschreibung der Variablen
+
+| Variable | Beschreibung | Beispielwert |
+|---|---|---|
+| `DB_USER` | PostgreSQL-Benutzername | `postgres` |
+| `DB_PASSWORD` | Datenbankpasswort | `geheim123` |
+| `DB_HOST` | Datenbankhost | `localhost` |
+| `DB_PORT` | Datenbankport | `5432` |
+| `DB_NAME` | Datenbankname | `kfz_schaden` |
+| `EMAIL_IMAP_HOST` | IMAP-Server für den Empfang | `imap.gmail.com` |
+| `EMAIL_SMTP_HOST` | SMTP-Server für den Versand | `smtp.gmail.com` |
+| `EMAIL_SMTP_PORT` | SMTP-Port | `587` |
+| `EMAIL_USE_STARTTLS` | STARTTLS aktivieren | `true` |
+| `EMAIL_USERNAME` | E-Mail-Adresse | `robot@example.com` |
+| `EMAIL_PASSWORD` | E-Mail-Passwort oder App-Passwort | `••••••••` |
+| `EMAIL_POLL_INTERVAL` | Prüfintervall in Sekunden | `60` |
+| `EMAIL_IMAP_FOLDER` | Zu überwachender Postfach-Ordner | `INBOX` |
+
+---
+
+## Datenbank vorbereiten
+
+Vor dem ersten Start muss die Datenbank erstellt und mit den Basisdaten befüllt werden:
+
+```bash
+# Datenbank anlegen
+psql -U postgres -c "CREATE DATABASE kfz_schaden;"
+
+# Versicherungs- und Fahrzeugdaten laden
+# Voraussetzung: data/raw/dataset.csv und data/raw/vehicle_dataset.csv müssen vorhanden sein
+python src/db/load_insurance_data.py
+python src/db/load_vehicle_catalog.py
+```
+
+---
+
+## Modelle trainieren
+
+### Vorausgesetzte Dateistruktur
+
+Bevor das Training gestartet wird, müssen folgende Dateien und Verzeichnisse vorhanden sein:
+
+```
+data/
+└── raw/
+    ├── dataset.csv                  # Textdaten (Schadensbeschreibungen + Metadaten)
+    ├── vehicle_dataset.csv          # Fahrzeugdaten für das Regressionsmodell
+    └── car_damage/
+        ├── training/
+        │   ├── 01-minor/            # Bilder mit leichten Schäden
+        │   ├── 02-moderate/         # Bilder mit mittleren Schäden
+        │   └── 03-severe/           # Bilder mit schweren Schäden
+        └── validation/
+            ├── 01-minor/
+            ├── 02-moderate/
+            └── 03-severe/
+```
+
+### Training starten
+
+```bash
+python src/services/train_all.py
+```
+
+Das Skript trainiert alle drei Modelle nacheinander und speichert die Gewichte automatisch in die richtigen Pfade.
+
+---
+
+## Starten der Anwendung
+
+### Voraussetzung: Modellgewichte
+
+Für jeden Einstiegspunkt müssen die trainierten Modellgewichte vorhanden sein:
+
+```
+src/models/multi_head_insurance/multi_head_model.pt   # Textklassifikation (PyTorch)
+src/models/cnn/cnn_model.keras                        # Bildklassifikation (TensorFlow/Keras)
+src/models/cnn/classes.json                           # Klassenreihenfolge des CNN ["01-minor", "02-moderate", "03-severe"]
+src/models/regression/regression_model.pkl            # Kostenprognose (scikit-learn)
+```
+
+Ohne diese Dateien kann die Pipeline nicht ausgeführt werden.
+
+---
+
+### 1. CLI (Kommandozeile)
+
+Direkter Aufruf der Vorhersage-Pipeline aus dem Terminal.
+
+```bash
+# Nur Text
+python main.py --text "Frontschaden nach Auffahrunfall, Airbag ausgelöst"
+
+# Text und Foto
+python main.py --text "Seitenschaden am vorderen Kotflügel" --photo foto.jpg
+
+# Nur Foto
+python main.py --photo foto.jpg
+```
+
+**Parameter:**
+
+| Parameter | Beschreibung |
+|---|---|
+| `--text` | Freitextbeschreibung des Schadens |
+| `--photo` | Pfad zu einem Schadensfoto (JPG, PNG) |
+
+Mindestens ein Parameter muss angegeben werden. Die Ergebnisse (Schweregrad, Konfidenz, Kostenschätzung) werden direkt in der Konsole ausgegeben.
+
+---
+
+### 2. E-Mail-Worker
+
+Überwacht automatisch ein E-Mail-Postfach und verarbeitet eingehende Schadensanfragen.
+
+```bash
+python -m src.automation.email_worker
+```
+
+Der Worker liest die E-Mail-Konfiguration aus der `.env`-Datei. Eingehende E-Mails mit Schadensbeschreibungen und/oder angehängten Fotos werden automatisch durch die Pipeline verarbeitet und das Ergebnis per E-Mail zurückgesendet.
+
+---
+
+### 3. Streamlit-Dashboard
+
+Grafische Weboberfläche zur Eingabe und Auswertung von Schadensanfragen.
+
+```bash
+streamlit run app/dashboard.py
+```
+
+Das Dashboard ist anschließend im Browser unter `http://localhost:8501` erreichbar.
+
+---
+
+## Projektstruktur
 
 ```
 InterGeeks-Agiles-Programmierprojekt/
 ├── app/
-│   └── dashboard.py          # Streamlit-Weboberfläche
-├── sql/
-│   ├── schema.sql            # PostgreSQL-Schema
-│   └── export/               # SQL-Export
+│   └── dashboard.py              # Streamlit-Dashboard
+├── data/
+│   └── raw/                      # Rohdaten (nicht eingecheckt)
+├── docs/                         # Dokumentation
+├── sql/                          # Datenbankschema und Migrationen
 ├── src/
-│   ├── db/                   # Datenbankanbindung & ETL
-│   │   ├── connection.py
-│   │   └── load_data.py
-│   ├── analysis/             # Statistik-Notebooks
-│   ├── models/               # Regression & Klassifikation
-│   ├── automation/           # Automatisierte Textverarbeitung
-│   └── cnn/                  # CNN: Training & Vorhersage
-│       ├── train_cnn.py
-│       └── predict_image.py
-├── utils/                    # Hilfsskripte
-├── docs/                     # Dokumentation & Sprint-Protokolle
-├── .streamlit/
-│   └── config.toml           # Theme im Farbschema der Hochschule
-├── main.py
-└── requirements.txt
+│   ├── automation/
+│   │   └── email_worker.py       # E-Mail-Worker
+│   ├── db/
+│   │   └── pipeline_repository.py
+│   ├── models/
+│   │   ├── cnn/                  # CNN-Bildklassifikator
+│   │   ├── multi_head_insurance/ # Multihead-Textmodell
+│   │   └── regression/           # Kostenregressionsmodell
+│   ├── services/
+│   │   ├── pipeline.py           # Haupt-Pipeline
+│   │   └── train_all.py          # Training aller Modelle
+│   ├── exceptions.py
+│   └── logging_config.py
+├── utils/
+│   └── fake_data_generators/     # Hilfsskripte für Testdaten
+├── main.py                       # CLI-Einstiegspunkt
+├── requirements.txt
+└── .env                          # Lokale Konfiguration (nicht eingecheckt)
 ```
-
----
-
-## ⚙️ Installation
-
-```bash
-# Repository klonen
-git clone https://github.com/fostij/InterGeeks-Agiles-Programmierprojekt.git
-cd InterGeeks-Agiles-Programmierprojekt
-
-# Virtuelle Umgebung (Python 3.12) anlegen und aktivieren
-python3.12 -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-
-# Abhängigkeiten installieren
-pip install -r requirements.txt
-
-# Zugangsdaten konfigurieren (.env aus Vorlage erstellen und ausfüllen)
-cp .env.example .env
-
-# Datenbank anlegen und befüllen
-psql -U postgres -c "CREATE DATABASE kfz_schaden;"
-python src/db/load_data.py
-```
-
----
-
-## ▶️ Nutzung
-
-```bash
-# Dashboard starten
-streamlit run app/dashboard.py
-
-# CNN-Modell trainieren (Bilddaten unter data/raw/car_damage/ erforderlich)
-python src/cnn/train_cnn.py
-
-# Einzelnes Foto klassifizieren
-python src/cnn/predict_image.py pfad/zum/foto.jpg
-```
-
-Im Dashboard wird links eine **Schadensmeldung** als Freitext eingegeben und rechts
-optional ein **Foto** hochgeladen. Nach dem Klick auf *Prognose erstellen* zeigt die
-Anwendung die extrahierten Merkmale, die Schadensschwere (aus Text und/oder Foto),
-die prognostizierte Schadenhöhe sowie ein Vergleichsdiagramm an. Die Eingaben
-werden in der Datenbank gespeichert.
-
----
-
-## 🗄️ Datenbank
-
-Der Datensatz wird in einem **normalisierten Schema** gespeichert:
-
-```
-kunden ──< policen ──< unfaelle ──< schaeden
-               │
-               └──< fahrzeuge
-```
-
-- **Schema:** Tabellen mit Primär-/Fremdschlüsseln und Indizes; Geldbeträge als
-  `NUMERIC`, fehlende Werte als `NULL`.
-- **Verbindung:** zentrale SQLAlchemy-Engine; Zugangsdaten liegen in einer
-  `.env`-Datei (nicht im Code, nicht im Repository).
-- **ETL:** liest die CSV ein, bereinigt sie (`?` → NULL, leere Spalte entfernt,
-  Typen gesetzt) und verteilt die Daten auf die Tabellen.
-- **Persistenz:** über das Dashboard erfasste Meldungen und Prognosen werden in
-  der Tabelle `vorhersagen` gespeichert.
-
----
-
-## 🔧 Funktionsweise (Text & Foto)
-
-Text und Foto liefern unterschiedliche, sich ergänzende Informationen:
-
-```
-Foto  -> CNN -> Schadensschwere (visuell)            |
-                                                      +--> Prognose -> Diagramm
-Text  -> Extraktion -> Fahrzeuge, Verletzte, Polizei |
-```
-
-- **Nur Text:** Die Schwere wird aus Schlüsselwörtern abgeleitet.
-- **Text + Foto:** Die Schwere stammt aus dem Foto (CNN, zuverlässiger), der
-  Kontext aus dem Text. Weichen beide Einschätzungen ab, weist das System darauf hin.
-
----
-
-## 📸 Screenshots
-
-<div align="center">
-  <em>Demo folgt – Screenshot bzw. GIF des Dashboards hier einfügen.</em>
-  <!-- ![Dashboard](docs/screenshots/dashboard.gif) -->
-</div>
-
----
-
-## 🔭 Ausblick
-
-- Anbindung des trainierten **Regressionsmodells** an das Dashboard anstelle der
-  aktuellen regelbasierten Platzhalter-Schätzung.
-- Diskussion der **Modellgrenzen** (kleiner Datensatz, begrenzte Genauigkeit).
-- Erweiterungen außerhalb des Projektumfangs: Datenschutz, OCR für Bild-PDFs.
-
----
-
-## ⚠️ Hinweis
-
-Es werden ausschließlich **Testdaten** verwendet – keine realen Kundendaten. Die
-Beträge des Originaldatensatzes (USD) werden im Projekt als EUR-Testwerte interpretiert.
-
----
-
-## 👥 Team
-
-Projektarbeit der Gruppe **InterGeeks** (3 Personen) im Rahmen des Agilen
-Programmierprojekts an der Hochschule Hannover – Fakultät III, Medien, Information
-und Design.
