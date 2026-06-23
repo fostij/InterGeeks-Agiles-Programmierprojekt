@@ -84,3 +84,6 @@ network_config.json
 *.pkl
 *.keras
 checkpoints/
+.venv*
+*.pytest_cache/
+.pre-commit-config.yaml
