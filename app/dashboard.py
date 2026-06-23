@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------
-# dashboard.py — Web interface for damage prediction (Streamlit)
+# dashboard.py — Web-Oberfläche (Streamlit) als Frontend für der Pipeline
 # ---------------------------------------------------------------------
 
 import re
@@ -12,26 +12,21 @@ import plotly.graph_objects as go
 import streamlit as st
 from sqlalchemy import text
 
-# Projektordner zum Pfad hinzufügen, damit das CNN-Modul importierbar ist
+# Projektordner zum Pfad hinzufügen, damit src-Module importierbar sind
 sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+from src.services.pipeline import Pipeline, PredictionResult
+from src.db.pipeline_repository import PipelineResultRepository
+from src.logging_config import setup_logging
+from app.app_config import SEVERITY_DE
 
 # ---------------------------------------------------------------------
 # 1) Seitenkonfiguration (muss der erste Streamlit-Befehl sein)
 # ---------------------------------------------------------------------
-st.set_page_config(
-    page_title="KFZ-Schadenprognose",
-    page_icon="🛡️",
-    layout="wide",
-)
-
-# ---------------------------------------------------------------------
-# Eigenes Styling: grüner Farbverlauf-Hintergrund + sanfte Einblend-
-# Animation. Wird einmalig per CSS injiziert.
-# ---------------------------------------------------------------------
+st.set_page_config(page_title="KFZ-Schadenprognose", page_icon="🛡️", layout="wide")
 st.markdown(
     """
     <style>
-    /* Sanfter grüner Verlauf als Hintergrund */
     .stApp {
         background: linear-gradient(135deg, #E8F5E9 0%, #FFFFFF 55%);
         animation: fadeIn 0.8s ease-in;
@@ -40,173 +35,99 @@ st.markdown(
         from { opacity: 0; transform: translateY(8px); }
         to   { opacity: 1; transform: translateY(0); }
     }
-    /* Abgerundete, weiche Karten-Optik fuer Tabellen und Bilder */
     .stDataFrame, .stImage img { border-radius: 12px; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-from src.models.cnn.cnn_config import CNN_TO_SEVERITY
-from app.app_config import SEVERITY_DE, BASE_AMOUNT
+# ---------------------------------------------------------------------
+# 2) Pipeline einmalig laden
+# ---------------------------------------------------------------------
+@st.cache_resource
+def get_pipeline() -> Pipeline:
+    """Initialisiert die Pipeline einmalig pro Session. 
+    st.cashe_resource sorgt dafür, dass die Modelle nicht bei jeder
+    Interaktion neu geladen werden."""
+    setup_logging()
+    return Pipeline(PipelineResultRepository())
 
-# ---------------------------------------------------------------------
-# 2) Datensatz laden (für die Vergleichswerte im Diagramm)
-# ---------------------------------------------------------------------
 @st.cache_data
 def load_dataset():
-    """Lädt den Datensatz für den Vergleich der Prognose mit den
-    historischen Durchschnittswerten. Gibt None zurück, falls die
-    Datei fehlt (die App bleibt dann ohne Vergleichsdiagramm nutzbar)."""
+    """Lädt den Datensatz für den Diagramm-Vergleich. None, falls Datei fehlt."""
     try:
         return pd.read_csv("data/raw/dataset.csv")
     except FileNotFoundError:
         return None
-
-
-# ---------------------------------------------------------------------
-# 3) Merkmalsextraktion aus dem Freitext
-# ---------------------------------------------------------------------
-def extract_features(text: str) -> dict:
-    """Extrahiert strukturierte Merkmale aus einer deutschsprachigen
-    Schadensmeldung. Liefert auch eine textbasierte Schwere-Einschaetzung,
-    die später ggf. durch das Foto-Ergebnis überschrieben wird."""
-
-    text_lower = text.lower()
-
-    # --- Schadensschwere aus Schlüsselwörtern (Fallback ohne Foto) ---
-    if any(w in text_lower for w in ["totalschaden", "total zerstört", "abgeschleppt"]):
-        severity = "Total Loss"
-    elif any(w in text_lower for w in ["erheblich", "schwer beschädigt", "großer schaden"]):
-        severity = "Major Damage"
-    elif any(w in text_lower for w in ["kratzer", "bagatelle", "geringfügig"]):
-        severity = "Trivial Damage"
-    else:
-        severity = "Minor Damage"
-
-    # --- Zahlenbasierte Merkmale per regulärem Ausdruck ---
-    m = re.search(r"(\d+)\s*fahrzeug", text_lower)
-    vehicles = int(m.group(1)) if m else 1
-
-    m = re.search(r"(\d+)\s*(personen?\s*)?verletzt", text_lower)
-    injuries = int(m.group(1)) if m else 0
-
-    m = re.search(r"(\d+)\s*zeug", text_lower)
-    witnesses = int(m.group(1)) if m else 0
-
-    police = "polizei" in text_lower
-
-    return {
-        "severity": severity,
-        "vehicles": vehicles,
-        "injuries": injuries,
-        "witnesses": witnesses,
-        "police": police,
-    }
-
-
-# ---------------------------------------------------------------------
-# 4) Schadensschwere aus dem Foto (CNN) bestimmen
-# ---------------------------------------------------------------------
-def predict_severity_from_photo(uploaded_file) -> tuple[str, float] | None:
-    """Speichert das hochgeladene Foto temporaer und ruft das CNN auf.
-    Gibt (interne Schwere-Kategorie, Wahrscheinlichkeit) zurück oder None,
-    falls kein Modell verfügbar ist."""
-    # Lazy-Import: TensorFlow nur laden, wenn wirklich ein Foto kommt
-    try:
-        from src.models.cnn.predict_image import predict_severity, SEVERITY_DE as CNN_LABELS
-    except Exception:
-        return None
-
-    # Streamlit liefert die Datei im Speicher -> temporär auf Platte schreiben,
-    # da predict_severity einen Dateipfad erwartet.
-    suffix = Path(uploaded_file.name).suffix or ".jpg"
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        tmp.write(uploaded_file.getbuffer())
-        tmp_path = tmp.name
-
-    label_de, confidence = predict_severity(tmp_path)
-
-    # predict_severity liefert bereits einen deutschen Namen; wir brauchen
-    # zusätzlich die interne Kategorie -> über die Umkehrung der CNN-Map.
-    cnn_class = next((k for k, v in CNN_LABELS.items() if v == label_de), None)
-    severity = CNN_TO_SEVERITY.get(cnn_class, "Minor Damage")
-    return severity, confidence
-
-
-# ---------------------------------------------------------------------
-# 5) Prognose der Schadenhöhe — VORLAEUFIGER PLATZHALTER
-#    TODO: Durch das trainierte Regressionsmodell ersetzen.
-# ---------------------------------------------------------------------
-def predict_amount(features: dict) -> float:
-    """Schätzt die Schadenhöhe (EUR) regelbasiert anhand der Schwere
-    sowie Zuschlägen für beteiligte Fahrzeuge und Verletzte."""
-    amount = BASE_AMOUNT[features["severity"]]
-    amount += (features["vehicles"] - 1) * 4_000
-    amount += features["injuries"] * 3_000
-    return float(amount)
-
-
+    
 def format_eur(value: float) -> str:
     """Formatiert einen Betrag im deutschen Format (Punkt als Tausender)."""
     return f"{value:,.0f} EUR".replace(",", ".")
 
 
 # ---------------------------------------------------------------------
-# 5b) Eingaben und Prognose in der PostgreSQL-Datenbank speichern
+# 3) Darstellung des Pipeline-Ergebnisses in der Weboberfläche
 # ---------------------------------------------------------------------
-def save_prediction(message: str, features: dict, amount: float,
-                    severity_source: str) -> bool:
-    """Speichert die eingegebene Schadensmeldung samt extrahierten Merkmalen
-    und prognostizierter Schadenhöhe in der Tabelle `vorhersagen`.
-    Gibt True bei Erfolg zurück, False falls keine DB-Verbindung möglich ist."""
-    try:
-        from src.db.connection import get_engine
-        engine = get_engine()
-        with engine.begin() as conn:
-            # Tabelle bei Bedarf anlegen (macht das Dashboard unabhängig)
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS vorhersagen (
-                    vorhersage_id    SERIAL PRIMARY KEY,
-                    erstellt_am      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    meldung          TEXT,
-                    schadensschwere  VARCHAR(20),
-                    quelle_schwere   VARCHAR(10),
-                    anzahl_fahrzeuge INTEGER,
-                    anzahl_verletzte INTEGER,
-                    anzahl_zeugen    INTEGER,
-                    polizei          BOOLEAN,
-                    prognose_eur     NUMERIC(12,2)
-                )
-            """))
-            # Eingaben + Prognose als neue Zeile einfügen (parametrisiert -> kein SQL-Injection)
-            conn.execute(text("""
-                INSERT INTO vorhersagen
-                    (meldung, schadensschwere, quelle_schwere, anzahl_fahrzeuge,
-                     anzahl_verletzte, anzahl_zeugen, polizei, prognose_eur)
-                VALUES
-                    (:meldung, :schwere, :quelle, :fahrzeuge,
-                     :verletzte, :zeugen, :polizei, :prognose)
-            """), {
-                "meldung": message,
-                "schwere": features["severity"],
-                "quelle": severity_source,
-                "fahrzeuge": features["vehicles"],
-                "verletzte": features["injuries"],
-                "zeugen": features["witnesses"],
-                "polizei": features["police"],
-                "prognose": amount,
-            })
-        return True
-    except Exception:
-        # DB nicht erreichbar -> App bleibt nutzbar, nur ohne Speicherung
-        return False
+def render_result(result: PredictionResult) -> None:
+    """Stellt das PredictionResult der Pipeline dar: extrahierte Felder,
+    Schadensschwere (Quelle + beide Schätzungen) und Kostenschätzung."""
+    st.subheader("Ergebnis")
+    left, right = st.columns([1, 1])
+
+    with left:
+        st.markdown("**Extrahierte Informationen**")
+        if result.fields:
+            rows = [(k, "—" if v is None else v) for k, v in result.fields.items()]
+            st.table(pd.DataFrame(rows, columns=["Feld", "Wert"]))
+        else:
+            st.write("Keine Felder aus dem Text extrahiert.")
+
+    with right:
+        st.markdown("**Schadensschwere**")
+        if result.severity_from_text:
+            st.write(f"Aus Text: {SEVERITY_DE.get(result.severity_from_text, result.severity_from_text)}")
+        if result.severity_from_photo:
+            conf = f" ({result.photo_confidence:.1%})" if result.photo_confidence else ""
+            st.write(f"Aus Foto (CNN): {SEVERITY_DE.get(result.severity_from_photo, result.severity_from_photo)}{conf}")
+
+        if result.final_severity:
+            quelle = "Foto" if result.severity_source == "photo" else "Text"
+            st.write(f"**Finale Schwere:** {SEVERITY_DE.get(result.final_severity, result.final_severity)} "
+                     f"(Quelle: {quelle})")
+
+        if result.predicted_amount is not None:
+            st.metric("Geschätzte Schadenhöhe (vehicle_claim)", format_eur(result.predicted_amount))
+        else:
+            st.info("Keine Kostenschätzung möglich (keine Schwere bestimmt).")
+
+
+def render_comparison_chart(amount: float) -> None:
+    """Zeigt das interaktive Vergleichsdiagramm (Prognose vs. Historie)."""
+    df = load_dataset()
+    if df is None:
+        return
+    means = df.groupby("incident_severity")["total_claim_amount"].mean()
+    labels_de = [SEVERITY_DE.get(s, s) for s in means.index]
+
+    fig = go.Figure()
+    fig.add_bar(x=labels_de, y=means.values,
+                marker=dict(color=means.values, colorscale="Greens",
+                            line=dict(color="#2E7D32", width=1)),
+                hovertemplate="%{x}: %{y:,.0f} EUR<extra></extra>")
+    fig.add_hline(y=amount, line_color="#1B5E20", line_width=3, line_dash="dash",
+                  annotation_text=f"Prognose: {format_eur(amount)}",
+                  annotation_position="top left")
+    fig.update_layout(title="Prognose im Vergleich zu historischen Schadensfällen",
+                      yaxis_title="Schadenhöhe (EUR)",
+                      plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                      font=dict(size=14), showlegend=False,
+                      margin=dict(t=60, b=40, l=60, r=20))
+    st.plotly_chart(fig, use_container_width=True)
 
 
 # =====================================================================
-# 6) Benutzeroberfläche
+# 4) Benutzeroberfläche
 # =====================================================================
-# Kopfzeile mit grünem Auto-Icon (Inline-SVG) statt rotem Emoji
 st.markdown(
     """
     <div style="display:flex; align-items:center; gap:12px; margin-bottom:4px;">
@@ -222,141 +143,43 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-st.caption(
-    "Schadensmeldung beschreiben und optional ein Foto des Schadens hochladen. "
-    "Das System schätzt die Schadensschwere und die erwartete Schadenhöhe."
-)
+st.caption("Schadensmeldung beschreiben und optional ein Foto hochladen. "
+           "Die zentrale Pipeline analysiert Text und Bild und schätzt die Schadenhöhe.")
 
-# --- Zweispaltige Eingabe: links Text, rechts Foto ---
+
 col_text, col_photo = st.columns(2)
 
 with col_text:
     st.subheader("1. Schadensmeldung")
-    message = st.text_area(
-        label="Beschreibung des Schadens",
-        height=220,
-        placeholder=(
-            "Beispiel: Am 10.06.2026 kam es zu einem Unfall mit 2 Fahrzeugen. "
-            "Mein Auto wurde erheblich beschädigt, 1 Person wurde verletzt. "
-            "Die Polizei wurde informiert, es gibt 2 Zeugen."
-        ),
-    )
-
+    message = st.text_area("Beschreibung des Schadens", height=220,
+                           placeholder="Beispiel: Unfall mit dem Subaru bei klarem Wetter, "
+                                       "Kratzer an der Beifahrertür, Stoßfänger gebrochen ...")
 with col_photo:
     st.subheader("2. Schadenfoto (optional)")
-    photo = st.file_uploader(
-        label="Foto des beschädigten Fahrzeugs",
-        type=["jpg", "jpeg", "png"],
-    )
+    photo = st.file_uploader("Foto des beschädigten Fahrzeugs", type=["jpg", "jpeg", "png"])
     if photo is not None:
         st.image(photo, caption="Hochgeladenes Foto", use_container_width=True)
 
 st.divider()
 
-# --- Aktion: Vorhersage nur nach Klick ---
-if st.button("Vorhersage erstellen", type="primary"):
-
+if st.button("Prognose erstellen", type="primary"):
     if not message.strip() and photo is None:
         st.warning("Bitte eine Schadensmeldung eingeben oder ein Foto hochladen.")
         st.stop()
 
-    # --- Merkmale aus dem Text (Kontext + Text-Schwere als Fallback) ---
-    features = extract_features(message) if message.strip() else {
-        "severity": "Minor Damage", "vehicles": 1,
-        "injuries": 0, "witnesses": 0, "police": False,
-    }
-    severity_text = features["severity"]    # Schwere laut Text
-
-    # --- Schwere aus dem Foto (CNN), falls vorhanden ---
-    severity_photo, photo_confidence = None, None
+    # Foto (aus dem Speicher) temporär auf Platte schreiben, da die
+    # Pipeline einen Dateipfad erwartet.
+    photo_path = None
     if photo is not None:
-        result = predict_severity_from_photo(photo)
-        if result is not None:
-            severity_photo, photo_confidence = result
-            # Foto hat Vorrang: es überschreibt die finale Schwere
-            features["severity"] = severity_photo
-        else:
-            st.info("CNN-Modell nicht gefunden — es wird die Schwere aus dem Text verwendet.")
+        suffix = Path(photo.name).suffix or ".jpg"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(photo.getbuffer())
+            photo_path = tmp.name
 
-    # --- Vorhersage berechnen ---
-    amount = predict_amount(features)
+    with st.spinner("Analyse läuft ..."):
+        pipeline = get_pipeline()
+        result = pipeline.run(text=message, photo_path=photo_path, source="dashboard")
 
-    # --- Ergebnisanzeige ---
-    st.subheader("Ergebnis")
-    res_left, res_right = st.columns([1, 1])
-
-    with res_left:
-        st.markdown("**Extrahierte Informationen**")
-        info = {
-            "Schadensschwere": SEVERITY_DE[features["severity"]],
-            "Beteiligte Fahrzeuge": features["vehicles"],
-            "Verletzte Personen": features["injuries"],
-            "Zeugen": features["witnesses"],
-            "Polizei informiert": "Ja" if features["police"] else "Nein",
-        }
-        st.table(pd.DataFrame(info.items(), columns=["Merkmal", "Wert"]))
-
-    with res_right:
-        st.markdown("**Schadensschwere**")
-        # Quelle der Schwere transparent anzeigen
-        if severity_photo is not None:
-            st.write(f"Aus Foto (CNN): **{SEVERITY_DE[severity_photo]}** "
-                     f"({photo_confidence:.1%})")
-        if message.strip():
-            st.write(f"Aus Text: {SEVERITY_DE[severity_text]}")
-        # Hinweis, falls Text und Foto deutlich abweichen
-        if severity_photo is not None and message.strip() \
-                and severity_photo != severity_text:
-            st.warning("Beschreibung und Foto weichen voneinander ab "
-                       "— ggf. genauere Prüfung erforderlich.")
-
-        st.metric("Erwartete Schadenhöhe", format_eur(amount))
-
-    # --- Eingaben und Vorhersage in der Datenbank speichern ---
-    severity_source = "Foto" if severity_photo is not None else "Text"
-    if save_prediction(message, features, amount, severity_source):
-        st.success("Eingaben und Vorhersage wurden in der Datenbank gespeichert.")
-    else:
-        st.info("Hinweis: keine Datenbankverbindung — Ergebnis wurde nicht gespeichert.")
-
-    # --- Visualisierung: Vorhersage vs. historische Durchschnitte ---
-    df = load_dataset()
-    if df is not None:
-        means = df.groupby("incident_severity")["total_claim_amount"].mean()
-        labels_de = [SEVERITY_DE.get(s, s) for s in means.index]
-
-        # Interaktives Balkendiagramm (Plotly) im grünen Farbschema.
-        # Balken: historische Durchschnittswerte; Linie: aktuelle Vorhersage.
-        fig = go.Figure()
-        fig.add_bar(
-            x=labels_de, y=means.values,
-            marker=dict(color=means.values, colorscale="Greens",
-                        line=dict(color="#2E7D32", width=1)),
-            name="Durchschnitt (Datensatz)",
-            hovertemplate="%{x}: %{y:,.0f} EUR<extra></extra>",
-        )
-        # Vorhersage als horizontale Referenzlinie
-        fig.add_hline(
-            y=amount, line_color="#1B5E20", line_width=3, line_dash="dash",
-            annotation_text=f"Vorhersage: {format_eur(amount)}",
-            annotation_position="top left",
-        )
-        fig.update_layout(
-            title="Vorhersage im Vergleich zu historischen Schadensfällen",
-            yaxis_title="Schadenhöhe (EUR)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            font=dict(size=14),
-            showlegend=False,
-            margin=dict(t=60, b=40, l=60, r=20),
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Datensatz nicht gefunden — Vergleichsdiagramm erscheint, "
-                "sobald data/raw/dataset.csv vorhanden ist.")
-
-    st.caption(
-        "Hinweis: Die Schadenhöhe wird aktuell regelbasiert geschätzt "
-        "(Platzhalter). Nach Abschluss des Trainings wird hier das "
-        "ML-Regressionsmodell eingesetzt."
-    )
+    render_result(result)
+    if result.predicted_amount is not None:
+        render_comparison_chart(result.predicted_amount)

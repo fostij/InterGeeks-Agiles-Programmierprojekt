@@ -83,3 +83,4 @@ network_config.json
 /data/raw/
 *.pkl
 *.keras
+checkpoints/
