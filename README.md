@@ -48,7 +48,7 @@ und **Streamlit-Dashboard**.
 | Bereich | Umsetzung |
 | --- | --- |
 | 🗄️ **Datenhaltung** | Normalisiertes PostgreSQL-Schema (mehrere Tabellen, Fremdschlüssel, Indizes) |
-| 🔄 **ETL** | CSV einlesen, bereinigen (`?`→NULL), Typen umwandeln und in die DB laden |
+| 🔄 **ETL** | CSV einlesen, bereinigen (`?`→NaN), Typen umwandeln und in die DB laden |
 | 📊 **Deskriptive Statistik** | Lageparameter, Streuungsmaße, Verteilungen, Ausreißer, Datenqualität |
 | 🔗 **Einfluss- & Zusammenhangsanalyse** | Korrelationen und Einfluss der Variablen auf die Zielvariable |
 | 🧪 **Hypothesentests** | Formulierung, Voraussetzungsprüfung und Interpretation |
