@@ -77,8 +77,8 @@ def render_result(result: PredictionResult) -> None:
     with left:
         st.markdown("**Extrahierte Informationen**")
         if result.fields:
-            rows = [(k, "—" if v is None else v) for k, v in result.fields.items()]
-            st.table(pd.DataFrame(rows, columns=["Feld", "Wert"]))
+            rows = [(k, "—" if v is None else str(v)) for k, v in result.fields.items()]
+            st.table(pd.DataFrame(rows, columns=["Feld", "Wert"]).astype(str))
         else:
             st.write("Keine Felder aus dem Text extrahiert.")
 
@@ -122,7 +122,7 @@ def render_comparison_chart(amount: float) -> None:
                       plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                       font=dict(size=14), showlegend=False,
                       margin=dict(t=60, b=40, l=60, r=20))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 # =====================================================================
@@ -158,7 +158,7 @@ with col_photo:
     st.subheader("2. Schadenfoto (optional)")
     photo = st.file_uploader("Foto des beschädigten Fahrzeugs", type=["jpg", "jpeg", "png"])
     if photo is not None:
-        st.image(photo, caption="Hochgeladenes Foto", use_container_width=True)
+        st.image(photo, caption="Hochgeladenes Foto", width="stretch")
 
 st.divider()
 
