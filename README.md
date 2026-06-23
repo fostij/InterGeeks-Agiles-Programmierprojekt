@@ -93,6 +93,7 @@ Vor dem ersten Start muss die Datenbank erstellt und mit den Basisdaten befüllt
 psql -U postgres -c "CREATE DATABASE kfz_schaden;"
 
 # Versicherungs- und Fahrzeugdaten laden
+# Voraussetzung: data/raw/dataset.csv und data/raw/vehicle_dataset.csv müssen vorhanden sein
 python src/db/load_insurance_data.py
 python src/db/load_vehicle_catalog.py
 ```
@@ -140,6 +141,7 @@ Für jeden Einstiegspunkt müssen die trainierten Modellgewichte vorhanden sein:
 ```
 src/models/multi_head_insurance/multi_head_model.pt   # Textklassifikation (PyTorch)
 src/models/cnn/cnn_model.keras                        # Bildklassifikation (TensorFlow/Keras)
+src/models/cnn/classes.json                           # Klassenreihenfolge des CNN ["01-minor", "02-moderate", "03-severe"]
 src/models/regression/regression_model.pkl            # Kostenprognose (scikit-learn)
 ```
 
