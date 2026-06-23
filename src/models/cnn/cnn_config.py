@@ -1,6 +1,7 @@
-# ---------------------------------------------------------------------
+"""
 # Gemeinsame Konstanten des CNN-Moduls
-# ---------------------------------------------------------------------
+"""
+
 from pathlib import Path
 
 # Pfade zum trainierten Modell und zu den Klassennamen

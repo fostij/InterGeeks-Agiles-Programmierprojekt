@@ -104,19 +104,18 @@ GermanInsuranceClassifier
 │   └── Outputs: 768-dimensional embeddings
 │
 └── 14 Prediction Heads (Multi-Head Architecture)
-    ├── auto_year (regression)
-    ├── auto_make (classification: 15 categories)
-    ├── auto_model (classification: 40 categories)
+    ├── auto_year (classification: 34 categories)
+    ├── auto_make (classification: 65 categories)
     ├── incident_type (classification: 5 categories)
     ├── incident_severity (classification: 5 categories)
     ├── incident_city (classification: 8 categories)
     ├── incident_state (classification: 8 categories)
     ├── collision_type (classification: 4 categories)
     ├── property_damage (classification: 3 categories)
-    ├── witnesses (regression)
+    ├── witnesses (classification)
     ├── authorities_contacted (classification: 5 categories)
     ├── police_report_available (classification: 3 categories)
-    ├── number_of_vehicles_involved (regression)
+    ├── number_of_vehicles_involved (classification)
     └── bodily_injuries (classification: 4 categories)
 ```
 

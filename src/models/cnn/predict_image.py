@@ -1,6 +1,6 @@
-# ---------------------------------------------------------------------
+"""
 # predict_image.py — Schadensschwere aus einem Foto vorhersagen
-# ---------------------------------------------------------------------
+"""
 
 import logging
 import json

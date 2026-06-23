@@ -99,7 +99,131 @@ class BestModelTracker:
 
         logger.info("Bester %s=%.4f bei Epoche %d.", self.metric, self.best_value, self.best_epoch + 1)
 
+def run_training(cfg: TrainConfig) -> None:
+    """Führt den vollständigen Trainingsablauf für das Multi-Head-Modell aus.
+ 
+    Schritte: Daten laden und aufbereiten, DataLoader bauen, Modell
+    trainieren und je Epoche validieren, besten Checkpoint tracken,
+    abschließend auf dem Testdatensatz evaluieren und den Trainingsverlauf
+    als CSV speichern.
+ 
+    Args:
+        cfg: Trainingskonfiguration.
+ 
+    Raises:
+        DataPreparationError: Wenn die Daten nicht aufbereitet werden können.
+        TrainingError: Wenn das Training oder das Speichern eines
+            Checkpoints fehlschlägt.
+        ModelLoadError: Wenn der beste Checkpoint nach dem Training nicht
+            wieder geladen werden kann.
+    """
 
+    device = get_device()
+
+    dataset = get_cleaned_dataset()
+    _ = build_save_set_network_config(cfg, dataset)
+
+    dataset = GermanInsuranceDataset(jsonl_path=cfg.dataset_path, network_config=cfg.network_config)
+    
+    train_loader, val_loader, test_loader = build_dataloaders(cfg, dataset)
+
+    model, criterion, optimizer = build_model(cfg, device)
+
+    total_steps = len(train_loader) * cfg.epochs
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=total_steps // 10,
+        num_training_steps=total_steps
+    )
+    logger.info("Training gestartet.")
+    
+    evaluator = MultiHeadEvaluator(cfg.network_config)
+
+    tracker = BestModelTracker(
+        output_checkpoint=cfg.best_checkpoint,
+        metric="partial_score",
+        mode="max"
+    )
+
+    history = []
+    
+    for epoch in range(cfg.epochs):
+        avg_loss = train_epoch(train_loader, model, criterion, optimizer, scheduler, device, epoch, cfg)
+
+        val_loss, loss_dict, acc_dict, exact, partial = evaluate_epoch(
+            val_loader,
+            model,
+            criterion,
+            device,
+            epoch,
+            evaluator,
+            split_name="val",
+        )
+
+        row = {
+            "epoch": epoch + 1,
+            "train_loss": avg_loss,
+            "val_loss": val_loss,
+            "exact": exact,
+            "partial": partial,
+        }
+
+        for field, value in loss_dict.items():
+            row[f"{field}_loss"] = value
+
+        for field, value in acc_dict.items():
+            row[f"{field}_acc"] = value
+
+        history.append(row)
+
+        report = build_report(cfg.network_config, loss_dict, acc_dict)
+        logger.info("\n%s", report)
+        evaluator.error_analyzer.report(top_n=3)
+
+        tracker.update(
+            value=partial,
+            epoch=epoch,
+            model=model,
+            optimizer=optimizer,
+            cfg=cfg,
+        )
+
+    tracker.summary()
+
+    try:
+        best_checkpoint = torch.load(cfg.best_checkpoint, map_location=device, weights_only=False)
+    except Exception as exc:
+        raise ModelLoadError(f"Bester Checkpoint konnte nicht geladen werden: {exc}") from exc
+
+    model.load_state_dict(best_checkpoint["model_state_dict"])
+
+    test_loss, test_loss_dict, test_acc_dict, test_exact, test_partial = evaluate_epoch(
+        test_loader,
+        model,
+        criterion,
+        device,
+        cfg.epochs,
+        evaluator,
+        split_name="test",
+    )
+
+    if history:
+        history[-1]["test_loss"] = test_loss
+        history[-1]["test_exact"] = test_exact
+        history[-1]["test_partial"] = test_partial
+
+        for field, value in test_loss_dict.items():
+            history[-1][f"test_{field}_loss"] = value
+
+        for field, value in test_acc_dict.items():
+            history[-1][f"test_{field}_acc"] = value
+
+    try:
+        pd.DataFrame(history).to_csv("training_history.csv", index=False)
+    except OSError as exc:
+        logger.error("Trainingsverlauf konnte nicht als CSV gespeichert werden: %s", exc)
+ 
+    logger.info("Training abgeschlossen. Bester Checkpoint gespeichert unter: %s", cfg.best_checkpoint)
 
 def get_device() -> torch.device:
     """Wählt das verfügbare Rechengerät (GPU, falls vorhanden, sonst CPU)."""
@@ -374,129 +498,3 @@ def build_report(
     df = pd.DataFrame(report)
 
     return df
-
-def run_training(cfg: TrainConfig) -> None:
-    """Führt den vollständigen Trainingsablauf für das Multi-Head-Modell aus.
- 
-    Schritte: Daten laden und aufbereiten, DataLoader bauen, Modell
-    trainieren und je Epoche validieren, besten Checkpoint tracken,
-    abschließend auf dem Testdatensatz evaluieren und den Trainingsverlauf
-    als CSV speichern.
- 
-    Args:
-        cfg: Trainingskonfiguration.
- 
-    Raises:
-        DataPreparationError: Wenn die Daten nicht aufbereitet werden können.
-        TrainingError: Wenn das Training oder das Speichern eines
-            Checkpoints fehlschlägt.
-        ModelLoadError: Wenn der beste Checkpoint nach dem Training nicht
-            wieder geladen werden kann.
-    """
-
-    device = get_device()
-
-    dataset = get_cleaned_dataset()
-    _ = build_save_set_network_config(cfg, dataset)
-
-    dataset = GermanInsuranceDataset(jsonl_path=cfg.dataset_path, network_config=cfg.network_config)
-    
-    train_loader, val_loader, test_loader = build_dataloaders(cfg, dataset)
-
-    model, criterion, optimizer = build_model(cfg, device)
-
-    total_steps = len(train_loader) * cfg.epochs
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer,
-        num_warmup_steps=total_steps // 10,
-        num_training_steps=total_steps
-    )
-    logger.info("Training gestartet.")
-    
-    evaluator = MultiHeadEvaluator(cfg.network_config)
-
-    tracker = BestModelTracker(
-        output_checkpoint=cfg.best_checkpoint,
-        metric="partial_score",
-        mode="max"
-    )
-
-    history = []
-    
-    for epoch in range(cfg.epochs):
-        avg_loss = train_epoch(train_loader, model, criterion, optimizer, scheduler, device, epoch, cfg)
-
-        val_loss, loss_dict, acc_dict, exact, partial = evaluate_epoch(
-            val_loader,
-            model,
-            criterion,
-            device,
-            epoch,
-            evaluator,
-            split_name="val",
-        )
-
-        row = {
-            "epoch": epoch + 1,
-            "train_loss": avg_loss,
-            "val_loss": val_loss,
-            "exact": exact,
-            "partial": partial,
-        }
-
-        for field, value in loss_dict.items():
-            row[f"{field}_loss"] = value
-
-        for field, value in acc_dict.items():
-            row[f"{field}_acc"] = value
-
-        history.append(row)
-
-        report = build_report(cfg.network_config, loss_dict, acc_dict)
-        logger.info("\n%s", report)
-        evaluator.error_analyzer.report(top_n=3)
-
-        tracker.update(
-            value=partial,
-            epoch=epoch,
-            model=model,
-            optimizer=optimizer,
-            cfg=cfg,
-        )
-
-    tracker.summary()
-
-    try:
-        best_checkpoint = torch.load(cfg.best_checkpoint, map_location=device, weights_only=False)
-    except Exception as exc:
-        raise ModelLoadError(f"Bester Checkpoint konnte nicht geladen werden: {exc}") from exc
-
-    model.load_state_dict(best_checkpoint["model_state_dict"])
-
-    test_loss, test_loss_dict, test_acc_dict, test_exact, test_partial = evaluate_epoch(
-        test_loader,
-        model,
-        criterion,
-        device,
-        cfg.epochs,
-        evaluator,
-        split_name="test",
-    )
-
-    if history:
-        history[-1]["test_loss"] = test_loss
-        history[-1]["test_exact"] = test_exact
-        history[-1]["test_partial"] = test_partial
-
-        for field, value in test_loss_dict.items():
-            history[-1][f"test_{field}_loss"] = value
-
-        for field, value in test_acc_dict.items():
-            history[-1][f"test_{field}_acc"] = value
-
-    try:
-        pd.DataFrame(history).to_csv("training_history.csv", index=False)
-    except OSError as exc:
-        logger.error("Trainingsverlauf konnte nicht als CSV gespeichert werden: %s", exc)
- 
-    logger.info("Training abgeschlossen. Bester Checkpoint gespeichert unter: %s", cfg.best_checkpoint)
