@@ -50,10 +50,9 @@ def predict_severity(image_path: str) -> tuple[str, float]:
     best_index = int(np.argmax(probabilities))
     confidence = float(probabilities[best_index])
 
-    # Internen Klassennamen auf deutschen Anzeigenamen abbilden
+    # CNN-Klasse auf deutschen Anzeigenamen abbilden(Pipeline-Kontrakt)
     raw_class = class_names[best_index]
-    label_de = SEVERITY_DE.get(raw_class, raw_class)
-    return label_de, confidence
+    return SEVERITY_DE.get(raw_class, raw_class), confidence
 
 
 # ---------------------------------------------------------------------
