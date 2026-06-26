@@ -6,6 +6,7 @@ pandas
 numpy
 tensorflow
 torch
+torchvision
 transformers
 scikit-learn
 psycopg2-binary
