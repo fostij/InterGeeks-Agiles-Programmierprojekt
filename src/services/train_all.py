@@ -24,6 +24,7 @@ Ausführen aus dem PROJEKTORDNER:
 import logging
 import subprocess
 import sys
+import os
 from pathlib import Path
 
 from src.logging_config import setup_logging
@@ -31,13 +32,15 @@ from src.logging_config import setup_logging
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+env = os.environ.copy()
+env["PYTHONPATH"] = os.path.abspath(".") + os.pathsep + env.get("PYTHONPATH", "")
 
 # Auf False setzen, um einen Schritt zu überspringen
 RUN_LOAD_INSURANCE_DATA = True
 RUN_LOAD_VEHICLE_CATALOG = True
 RUN_TRAIN_MULTIHEAD = True
-RUN_TRAIN_CNN = True
-RUN_TRAIN_REGRESSION = True
+RUN_TRAIN_CNN = False
+RUN_TRAIN_REGRESSION = False
 
 
 def run_step(title: str, command: list[str]) -> None:
@@ -53,7 +56,7 @@ def run_step(title: str, command: list[str]) -> None:
     print(f"\n{'=' * 70}")
     print(f"  {title}")
     print(f"{'=' * 70}")
-    result = subprocess.run(command, cwd=PROJECT_ROOT)
+    result = subprocess.run(command, cwd=PROJECT_ROOT, env=env)
     if result.returncode != 0:
         logger.error("Schritt fehlgeschlagen: %s", title)
         sys.exit(1)

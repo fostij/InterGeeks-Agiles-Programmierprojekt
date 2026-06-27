@@ -1,18 +1,34 @@
-"""Zentrale Konfiguration für Datenpfade, Modellpfade und Feldlisten.
+"""Zentrale Konfiguration für Modellpfade und Feldlisten.
  
-Dieses Modul bündelt alle projektweiten Konstanten (Dateipfade, gültige
+Dieses Modul bündelt alle projektweiten Konstanten (gültige
 Kategorien, Zielfelder), damit sie nicht in einzelnen Skripten verstreut
 und dupliziert werden.
 """
 
 from pathlib import Path
 
-INSURANCE_DATASET_PATH = Path("data/raw/dataset.csv")
-VEHICLE_DATASET_PATH = Path("data/raw/vehicle_dataset.csv")
+def _find_project_root(start: Path) -> Path:
+    current = start.resolve()
 
-MULTI_HEAD_MODEL_PATH = Path("src/models/multi_head_insurance/multi_head_model.pt")
-CNN_MODEL_PATH = Path("src/models/cnn/cnn_model.keras")
-REGRESSION_MODEL_PATH = Path("src/models/regression/regression_model.pkl")
+    while current != current.parent:
+        if (current / "data").exists() and (current / "src").exists():
+            return current
+        current = current.parent
+
+    raise RuntimeError("Project root not found")
+
+_BASE_DIR = _find_project_root(Path(__file__).parent)
+
+INSURANCE_DATASET_PATH = _BASE_DIR / "data" / "raw" / "dataset.csv"
+VEHICLE_DATASET_PATH = _BASE_DIR / "data" / "raw" / "vehicle_dataset.csv"
+CAR_DAMAGE_DATASET_DIR = _BASE_DIR / "data" / "raw" / "car_damage"
+
+MULTI_HEAD_MODEL_PATH = _BASE_DIR / "src" / "models" / "multi_head_insurance" / "multi_head_model.pt"
+CNN_MODEL_PATH = _BASE_DIR / "src" / "models" / "cnn" / "cnn_model.keras"
+CNN_CLASSES_PATH = _BASE_DIR / "src" / "models" / "cnn" / "classes.json"
+REGRESSION_MODEL_PATH = _BASE_DIR / "src" / "models" / "regression" / "regression_model.pkl"
+
+SCHEMA_PATH = _BASE_DIR / "sql" / "schema.sql"
 
 VALID_CASE_TYPES = {
     "Front Collision",
