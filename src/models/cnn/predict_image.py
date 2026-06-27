@@ -13,7 +13,8 @@ import tensorflow as tf
 logger = logging.getLogger(__name__)
 
 # Konfiguration
-from src.models.cnn.cnn_config import MODEL_PATH, CLASSES_PATH, SEVERITY_DE, IMAGE_SIZE
+from src.models.cnn.cnn_config import SEVERITY_DE, IMAGE_SIZE
+from src.ml_config import CNN_MODEL_PATH, CNN_CLASSES_PATH
 
 
 @lru_cache(maxsize=1)
@@ -21,8 +22,8 @@ def _load_model_and_classes() -> tuple[tf.keras.Model, list[str]]:
     """Lädt Modell und Klassennamen einmalig und hält sie im Cache.
     @lru_cache sorgt dafür, dass das Modell nur beim ersten Aufruf
     geladen wird (wichtig für das Dashboard: kein Neuladen pro Klick)."""
-    model = tf.keras.models.load_model(MODEL_PATH)
-    class_names = json.loads(CLASSES_PATH.read_text())
+    model = tf.keras.models.load_model(CNN_MODEL_PATH)
+    class_names = json.loads(CNN_CLASSES_PATH.read_text())
     return model, class_names
 
 

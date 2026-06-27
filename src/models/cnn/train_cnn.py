@@ -14,11 +14,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 # Gemeinsame Konstanten zentral aus config importieren
-from src.models.cnn.cnn_config import MODEL_PATH, CLASSES_PATH, IMAGE_SIZE
+from src.models.cnn.cnn_config import IMAGE_SIZE
+from src.ml_config import CNN_MODEL_PATH, CNN_CLASSES_PATH, CAR_DAMAGE_DATASET_DIR
 
-DATA_DIR     = Path("data/raw/car_damage")
-TRAIN_DIR    = DATA_DIR / "training" 
-VAL_DIR      = DATA_DIR / "validation" 
+TRAIN_DIR    = CAR_DAMAGE_DATASET_DIR / "training" 
+VAL_DIR      = CAR_DAMAGE_DATASET_DIR / "validation" 
 BATCH_SIZE   = 32
 EPOCHS       = 10
 SEED         = 42
@@ -96,10 +96,10 @@ def train() -> None:
     model = build_model(len(class_names))
     model.fit(train_ds, validation_data=val_ds, epochs=EPOCHS)
 
-    model.save(MODEL_PATH)
-    CLASSES_PATH.write_text(json.dumps(class_names, ensure_ascii=False))
-    logger.info(f"Model saved: {MODEL_PATH}")
-    logger.info(f"Classes saved: {CLASSES_PATH}")
+    model.save(CNN_MODEL_PATH)
+    CNN_CLASSES_PATH.write_text(json.dumps(class_names, ensure_ascii=False))
+    logger.info(f"Model saved: {CNN_MODEL_PATH}")
+    logger.info(f"Classes saved: {CNN_CLASSES_PATH}")
 
 
 if __name__ == "__main__":
