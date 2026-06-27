@@ -11,16 +11,10 @@
 #   python src/db/load_data.py
 # =====================================================================
 
-import sys
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from sqlalchemy import text
 
-# Projektordner zum Python-Pfad hinzufügen, damit der Import
-# "from src.db.connection import ..." auch beim direkten Start klappt.
-sys.path.append(str(Path(__file__).resolve().parents[2]))
 from src.ml_config import INSURANCE_DATASET_PATH, SCHEMA_PATH
 from src.db.connection import get_engine
 
