@@ -2,8 +2,6 @@
 # Gemeinsame Konstanten des CNN-Moduls
 """
 
-from pathlib import Path
-
 # Bildgröße — muss in Training und Vorhersage identisch sein!
 IMAGE_SIZE = (224, 224)
 

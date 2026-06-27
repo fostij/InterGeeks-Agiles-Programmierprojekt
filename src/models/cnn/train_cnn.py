@@ -4,7 +4,6 @@ train_cnn.py — CNN-Training zur Klassifikation der Schadensschwere
 
 import logging 
 import json
-from pathlib import Path
 
 import tensorflow as tf
 from tensorflow.keras import layers, models
@@ -14,15 +13,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 # Gemeinsame Konstanten zentral aus config importieren
-from src.models.cnn.cnn_config import IMAGE_SIZE
+from src.models.cnn.cnn_config import IMAGE_SIZE, BATCH_SIZE, EPOCHS, SEED
 from src.ml_config import CNN_MODEL_PATH, CNN_CLASSES_PATH, CAR_DAMAGE_DATASET_DIR
 
 TRAIN_DIR    = CAR_DAMAGE_DATASET_DIR / "training" 
 VAL_DIR      = CAR_DAMAGE_DATASET_DIR / "validation" 
-BATCH_SIZE   = 32
-EPOCHS       = 10
-SEED         = 42
-
 
 def load_datasets() -> tuple[tf.data.Dataset, tf.data.Dataset, list[str]]:
     """Lädt Trainings- und Validierungsbilder aus den jeweils vorgegebenen

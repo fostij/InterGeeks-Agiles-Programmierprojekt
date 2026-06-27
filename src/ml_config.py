@@ -23,10 +23,10 @@ INSURANCE_DATASET_PATH = _BASE_DIR / "data" / "raw" / "dataset.csv"
 VEHICLE_DATASET_PATH = _BASE_DIR / "data" / "raw" / "vehicle_dataset.csv"
 CAR_DAMAGE_DATASET_DIR = _BASE_DIR / "data" / "raw" / "car_damage"
 
-MULTI_HEAD_MODEL_PATH = _BASE_DIR / "src" / "models" / "multi_head_insurance" / "multi_head_model.pt"
-CNN_MODEL_PATH = _BASE_DIR / "src" / "models" / "cnn" / "cnn_model.keras"
-CNN_CLASSES_PATH = _BASE_DIR / "src" / "models" / "cnn" / "classes.json"
-REGRESSION_MODEL_PATH = _BASE_DIR / "src" / "models" / "regression" / "regression_model.pkl"
+MULTI_HEAD_MODEL_PATH = _BASE_DIR / "checkpoints" / "multi_head_model.pt"
+CNN_MODEL_PATH = _BASE_DIR / "checkpoints" / "cnn_model.keras"
+CNN_CLASSES_PATH = _BASE_DIR / "checkpoints" / "classes.json"
+REGRESSION_MODEL_PATH = _BASE_DIR / "checkpoints" / "regression_model.pkl"
 
 SCHEMA_PATH = _BASE_DIR / "sql" / "schema.sql"
 
