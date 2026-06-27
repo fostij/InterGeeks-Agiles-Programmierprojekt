@@ -21,6 +21,7 @@ _BASE_DIR = _find_project_root(Path(__file__).parent)
 
 INSURANCE_DATASET_PATH = _BASE_DIR / "data" / "raw" / "dataset.csv"
 VEHICLE_DATASET_PATH = _BASE_DIR / "data" / "raw" / "vehicle_dataset.csv"
+CAR_DAMAGE_DATASET_DIR = _BASE_DIR / "data" / "raw" / "car_damage"
 
 MULTI_HEAD_MODEL_PATH = _BASE_DIR / "src" / "models" / "multi_head_insurance" / "multi_head_model.pt"
 CNN_MODEL_PATH = _BASE_DIR / "src" / "models" / "cnn" / "cnn_model.keras"
