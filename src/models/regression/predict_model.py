@@ -2,7 +2,7 @@ import logging
 import joblib
 import pandas as pd
 from src.exceptions import InferenceError, ModelLoadError
-from src.ml_config import REGRESSION_MODEL_PATH
+from src.constants_paths import REGRESSION_MODEL_PATH
 
 logger = logging.getLogger(__name__)
 

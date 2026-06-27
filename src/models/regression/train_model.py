@@ -14,7 +14,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 from src.exceptions import TrainingError
-from src.ml_config import REGRESSION_MODEL_PATH, PREDICTION_FIELD
+from src.constants_paths import REGRESSION_MODEL_PATH, PREDICTION_FIELD
 from src.models.regression.prepare_data import get_processed_data, REGRESSION_CATEGORICAL_COLS
 
 logger = logging.getLogger(__name__)

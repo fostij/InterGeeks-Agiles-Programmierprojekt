@@ -1,18 +1,9 @@
-"""Zentrale Konfiguration für Datenpfade, Modellpfade und Feldlisten.
+"""Zentrale Konfiguration für Modellpfade und Feldlisten.
  
-Dieses Modul bündelt alle projektweiten Konstanten (Dateipfade, gültige
+Dieses Modul bündelt alle projektweiten Konstanten (gültige
 Kategorien, Zielfelder), damit sie nicht in einzelnen Skripten verstreut
 und dupliziert werden.
 """
-
-from pathlib import Path
-
-INSURANCE_DATASET_PATH = Path("data/raw/dataset.csv")
-VEHICLE_DATASET_PATH = Path("data/raw/vehicle_dataset.csv")
-
-MULTI_HEAD_MODEL_PATH = Path("src/models/multi_head_insurance/multi_head_model.pt")
-CNN_MODEL_PATH = Path("src/models/cnn/cnn_model.keras")
-REGRESSION_MODEL_PATH = Path("src/models/regression/regression_model.pkl")
 
 VALID_CASE_TYPES = {
     "Front Collision",

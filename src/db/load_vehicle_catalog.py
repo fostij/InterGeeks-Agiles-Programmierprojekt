@@ -22,7 +22,7 @@ import pandas as pd
 from sqlalchemy import text
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
-from src.ml_config import VEHICLE_DATASET_PATH
+from src.constants_paths import VEHICLE_DATASET_PATH
 from src.db.connection import get_engine
 
 CSV_PATH = VEHICLE_DATASET_PATH

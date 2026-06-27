@@ -20,7 +20,7 @@ import pandas as pd
 import torch
 from src.db.pipeline_repository import PipelineResultRepository
 from src.exceptions import InferenceError, ModelLoadError
-from src.ml_config import (
+from src.constants_paths import (
     MULTI_HEAD_MODEL_PATH,
     REGRESSION_MODEL_PATH,
     TARGET_FIELDS,
