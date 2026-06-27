@@ -16,6 +16,7 @@ from sklearn.model_selection import train_test_split
 from src.exceptions import TrainingError
 from src.ml_config import REGRESSION_MODEL_PATH, PREDICTION_FIELD
 from src.models.regression.prepare_data import get_processed_data, REGRESSION_CATEGORICAL_COLS
+from src.models.regression.regression_config import N_ESTIMATORS, RANDOM_STATE, TEST_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ def build_pipeline() -> Pipeline:
         ],
         remainder="passthrough",
     )
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model = RandomForestRegressor(n_estimators=N_ESTIMATORS, random_state=RANDOM_STATE)
     return Pipeline([("preprocessor", preprocessor), ("regressor", model)])
 
 def train_and_save_model() -> None:
@@ -49,7 +50,7 @@ def train_and_save_model() -> None:
     X = df.drop(columns=[PREDICTION_FIELD])
     y = df[PREDICTION_FIELD]
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
 
     pipeline = build_pipeline()
     

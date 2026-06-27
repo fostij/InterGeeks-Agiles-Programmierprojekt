@@ -2,6 +2,11 @@
 # Gemeinsame Konstanten des CNN-Moduls
 """
 
+# Trainingsparameter
+BATCH_SIZE   = 32
+EPOCHS       = 10
+SEED         = 42
+
 # Bildgröße — muss in Training und Vorhersage identisch sein!
 IMAGE_SIZE = (224, 224)
 

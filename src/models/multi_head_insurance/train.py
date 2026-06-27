@@ -23,7 +23,16 @@ from src.models.multi_head_insurance.dataset import GermanInsuranceDataset
 from src.utils.labels_encoder import prepare_pipeline_and_save_jsonl
 from src.models.multi_head_insurance.engine import MultiHeadEvaluator, evaluate
 from src.utils.data_orchestrator import get_cleaned_dataset
- 
+from src.models.multi_head_insurance.multi_head_config import (
+    BATCH_SIZE, LEARNING_RATE, EPOCHS, MAX_GRAD_NORM,
+    WEIGHT_DECAY, WARMUP_RATIO,
+    TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT, SPLIT_SEED,
+    DATASET_COUNT, MODEL_NAME,
+    TRACKER_METRIC, TRACKER_MODE,
+    DEFAULT_DATASET_PATH, DEFAULT_NETWORK_CONFIG_PATH, DEFAULT_CHECKPOINT_PATH
+)
+from src.ml_config import INSURANCE_DATASET_PATH
+
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -35,22 +44,22 @@ class TrainConfig:
     (siehe build_save_set_network_config()).
     """
 
-    batch_size: int = 4
-    lr: float = 2e-5
-    epochs: int = 1
-    max_grad_norm: float = 1.0
-    train_split: float = 0.8
-    val_split: float = 0.1
-    test_split: float = 0.1
-    split_seed: int = 42
-    dataset_count: int = 1000
-    model_name: str = "uklfr/gottbert-base"
+    batch_size: int = BATCH_SIZE
+    lr: float = LEARNING_RATE
+    epochs: int = EPOCHS
+    max_grad_norm: float = MAX_GRAD_NORM
+    train_split: float = TRAIN_SPLIT
+    val_split: float = VAL_SPLIT
+    test_split: float = TEST_SPLIT
+    split_seed: int = SPLIT_SEED
+    dataset_count: int = DATASET_COUNT
+    model_name: str = MODEL_NAME
 
-    dataset_path: str = None
-    input_file: str = None
-    network_config_path: str = None
-    output_checkpoint: str = None
-    best_checkpoint: str = None
+    dataset_path: str | None = DEFAULT_DATASET_PATH
+    input_file: str | None = INSURANCE_DATASET_PATH
+    network_config_path: str | None = DEFAULT_NETWORK_CONFIG_PATH
+    output_checkpoint: str | None = DEFAULT_CHECKPOINT_PATH
+
 
     network_config: dict[str, dict] = None
     label_encoders: dict[str, LabelEncoder] = None
@@ -64,8 +73,8 @@ class BestModelTracker:
     """
 
     output_checkpoint: str
-    metric: str = "partial_score"  # "partial_score" | "exact_match" | "val_loss"
-    mode: str = "max"              # "max" for accuracy, "min" for loss
+    metric: str = TRACKER_METRIC
+    mode: str = TRACKER_MODE
 
     best_value: float = None
     best_epoch: int = -1
@@ -132,7 +141,7 @@ def run_training(cfg: TrainConfig) -> None:
     total_steps = len(train_loader) * cfg.epochs
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
-        num_warmup_steps=total_steps // 10,
+        num_warmup_steps=int(total_steps * WARMUP_RATIO),
         num_training_steps=total_steps
     )
     logger.info("Training gestartet.")
@@ -140,9 +149,9 @@ def run_training(cfg: TrainConfig) -> None:
     evaluator = MultiHeadEvaluator(cfg.network_config)
 
     tracker = BestModelTracker(
-        output_checkpoint=cfg.best_checkpoint,
-        metric="partial_score",
-        mode="max"
+        output_checkpoint=cfg.output_checkpoint,
+        metric=TRACKER_METRIC,
+        mode=TRACKER_MODE
     )
 
     history = []
@@ -191,11 +200,11 @@ def run_training(cfg: TrainConfig) -> None:
     tracker.summary()
 
     try:
-        best_checkpoint = torch.load(cfg.best_checkpoint, map_location=device, weights_only=False)
+        output_checkpoint = torch.load(cfg.output_checkpoint, map_location=device, weights_only=False)
     except Exception as exc:
         raise ModelLoadError(f"Bester Checkpoint konnte nicht geladen werden: {exc}") from exc
 
-    model.load_state_dict(best_checkpoint["model_state_dict"])
+    model.load_state_dict(output_checkpoint["model_state_dict"])
 
     test_loss, test_loss_dict, test_acc_dict, test_exact, test_partial = evaluate_epoch(
         test_loader,
@@ -223,7 +232,7 @@ def run_training(cfg: TrainConfig) -> None:
     except OSError as exc:
         logger.error("Trainingsverlauf konnte nicht als CSV gespeichert werden: %s", exc)
  
-    logger.info("Training abgeschlossen. Bester Checkpoint gespeichert unter: %s", cfg.best_checkpoint)
+    logger.info("Training abgeschlossen. Bester Checkpoint gespeichert unter: %s", cfg.output_checkpoint)
 
 def get_device() -> torch.device:
     """Wählt das verfügbare Rechengerät (GPU, falls vorhanden, sonst CPU)."""
@@ -323,7 +332,7 @@ def build_model(cfg: TrainConfig, device: torch.device) -> tuple[GermanInsurance
     model.to(device)
 
     criterion = DynamicMultiHeadLoss(target_fields=list(cfg.network_config.keys()), network_config=cfg.network_config)
-    optimizer = AdamW(model.parameters(), lr=cfg.lr, weight_decay=0.01)
+    optimizer = AdamW(model.parameters(), lr=cfg.lr, weight_decay=WEIGHT_DECAY)
 
     return model, criterion, optimizer
 
@@ -498,3 +507,9 @@ def build_report(
     df = pd.DataFrame(report)
 
     return df
+
+if __name__ == "__main__":
+    from src.logging_config import setup_logging
+ 
+    setup_logging()
+    run_training(TrainConfig())
