@@ -401,18 +401,6 @@ InterGeeks-Agiles-Programmierprojekt/
 
 ---
 
-## 📸 Screenshots
-
-<div align="center">
-
-**Streamlit-Dashboard – Eingabe von Schadensmeldung und Foto**
-
-<img src="docs/screenshots/dashboard.png" alt="KFZ-Schadenprognose Dashboard" width="800" />
-
-</div>
-
----
-
 ## 🔭 Ausblick
 
 - Diskussion der **Modellgrenzen** (begrenzter Bilddatensatz, Genauigkeit der
