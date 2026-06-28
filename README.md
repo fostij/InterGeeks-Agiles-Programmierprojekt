@@ -124,7 +124,9 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 # Abhängigkeiten installieren
 pip install -r requirements.txt
 
-#Dieser Schritt registriert src/ und app/ als Python-Pakete im virtuellen Environment. Danach funktionieren alle Importe (from src.services.pipeline import ...) korrekt — unabhängig davon, aus welchem Verzeichnis ein Skript gestartet wird. Ohne diesen Schritt können ModuleNotFoundError-Fehler auftreten.
+#Dieser Schritt registriert src/ und app/ als Python-Pakete im virtuellen Environment.
+#Danach funktionieren alle Importe (from src.services.pipeline import ...) korrekt — unabhängig davon,
+#aus welchem Verzeichnis ein Skript gestartet wird. Ohne diesen Schritt können ModuleNotFoundError-Fehler auftreten.
 pip install -e .
 
 # Zugangsdaten konfigurieren (.env aus Vorlage erstellen und ausfüllen)
