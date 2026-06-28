@@ -33,8 +33,8 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 # Auf False setzen, um einen Schritt zu überspringen
-RUN_LOAD_INSURANCE_DATA = True
-RUN_LOAD_VEHICLE_CATALOG = True
+RUN_LOAD_INSURANCE_DATA = False
+RUN_LOAD_VEHICLE_CATALOG = False
 RUN_TRAIN_MULTIHEAD = False
 RUN_TRAIN_CNN = True
 RUN_TRAIN_REGRESSION = True
