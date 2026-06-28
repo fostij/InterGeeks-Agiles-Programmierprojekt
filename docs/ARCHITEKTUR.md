@@ -5,37 +5,27 @@
 Das System besteht aus drei unabhängigen Einstiegspunkten, die alle auf dieselbe zentrale Pipeline zugreifen. Die Pipeline kombiniert drei spezialisierte KI-Modelle zu einer einzigen Schadensbewertung und persistiert die Ergebnisse in einer PostgreSQL-Datenbank.
 
 ```
-         ┌──────────────┐   ┌──────────────┐   ┌──────────────────┐
-Eingabe  │     CLI      │   │   E-Mail-    │   │   Streamlit-     │
-         │  (main.py)   │   │   Worker     │   │   Dashboard      │
-         └──────┬───────┘   └──────┬───────┘   └────────┬─────────┘
-                │                  │                     │
-                └──────────────────┼─────────────────────┘
-                                   │
-                          ┌────────▼────────┐
-                          │    Pipeline     │
-                          │ (services/      │
-                          │  pipeline.py)   │
-                          └────────┬────────┘
-               ┌───────────────────┘
-               │
-      ┌────────▼──────┐  ┌────────────────┐
-      │  Multihead-   │  │  CNN-Modell    │
-      │  Textmodell   │  │  (Bild)        │
-      │  (.pt)        │  │  (.keras)      │
-      └───────┬───────┘  └───────┬────────┘
-   Text-      │                  │  Bild-
-   Features   └────────┬─────────┘  Features
-                       │
-              ┌────────▼──────┐
-              │ Regressions-  │
-              │ modell (.pkl) │
-              └───────────────┘
-                                   │
-                          ┌────────▼────────┐
-                          │   PostgreSQL    │
-                          │  (kfz_schaden)  │
-                          └─────────────────┘
+        ┌─────────────┐   ┌──────────────┐   ┌─────────────────┐
+Clients │     CLI     │   │ E-Mail-Worker│   │    Dashboard    │
+        └──────┬──────┘   └──────┬───────┘   └────────┬────────┘
+               └─────────────────┼────────────────────┘
+                                 ▼
+                        ┌──────────────────┐
+                        │     Pipeline     │   (src/services/pipeline.py)
+                        └──────────────────┘
+                                 │
+        ┌────────────────────────┼────────────────────────┐
+        ▼                        ▼                         ▼
+┌───────────────┐       ┌────────────────┐        ┌────────────────┐
+│  Multi-Head   │       │      CNN       │        │   Regression   │
+│  Text → Felder│       │  Foto → Schwere│        │ Felder → Kosten│
+│   (PyTorch)   │       │  (TF/Keras)    │        │ (scikit-learn) │
+└───────────────┘       └────────────────┘        └────────────────┘
+        └────────────────────────┼────────────────────────┘
+                                 ▼
+                        ┌──────────────────┐
+                        │   PostgreSQL     │   (Anfrage + Ergebnis je Stufe)
+                        └──────────────────┘
 ```
 
 ---
@@ -188,6 +178,12 @@ Alle Laufzeitkonfiguration erfolgt über `.env`. Es gibt keine fest codierten Zu
 ## Verzeichnisstruktur (Kurzübersicht)
 
 ```
+checkpoint/
+│   ├── classes.json
+│   ├── cnn_model.keras
+│   ├── multi_head_model.pt
+│   └── regression_model.pkl
+│
 src/
 ├── automation/
 │   └── email_worker.py       # E-Mail-Einstiegspunkt
