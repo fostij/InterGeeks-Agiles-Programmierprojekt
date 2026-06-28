@@ -179,17 +179,35 @@ EMAIL_IMAP_FOLDER=
 
 ## 🗄️ Datenbank vorbereiten
 
-Vor dem ersten Start muss die Datenbank erstellt und mit den Basisdaten befüllt
-werden. Voraussetzung: `data/raw/dataset.csv` und `data/raw/vehicle_dataset.csv`
-müssen vorhanden sein.
+Vor dem ersten Start muss die Datenbank `kfz_schaden` angelegt werden:
 
 ```bash
 # Datenbank anlegen
 psql -U postgres -c "CREATE DATABASE kfz_schaden;"
 
-# Versicherungs- und Fahrzeugdaten laden (legt zugleich das Schema an)
+```
+
+Für die Befüllung der Datenbank gibt es zwei alternative Wege:
+
+### Option A: Befüllung aus CSV-Rohdaten (Skripte)
+
+Voraussetzung: Die Dateien `data/raw/dataset.csv` und `data/raw/vehicle_dataset.csv` müssen vorhanden sein. Die Skripte erstellen das Schema automatisch und laden die Daten.
+
+```bash
+# Versicherungs- und Fahrzeugdaten laden
 python src/db/load_insurance_data.py
 python src/db/load_vehicle_catalog.py
+
+```
+
+### Option B: Wiederherstellung aus einem SQL-Dump
+
+Falls ein fertiger Datenbank-Dump (`backup.sql`) vorliegt, kann das Schema inklusive aller Daten direkt importiert werden:
+
+```bash
+# Daten aus SQL-Dump einspielen
+psql -U postgres -d kfz_schaden -f backup.sql
+
 ```
 
 ### Schema
