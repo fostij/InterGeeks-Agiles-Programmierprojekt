@@ -260,6 +260,14 @@ python -m src.models.cnn.train_cnn
 Das Skript `train_all.py` trainiert alle Modelle und speichert die Gewichte
 automatisch in die erwarteten Pfade.
 
+Trainings-Hyperparameter und CNN-Konstanten (Bildgröße, Batch-Size, Epochen usw.) befinden sich in den jeweiligen Config-Dateien:
+
+```
+src/models/cnn/cnn_config.py                    # CNN-Trainingskonstanten
+src/models/multi_head_insurance/multi_head_config.py        # Multi-Head-Hyperparameter
+src/models/regression/regression_config.py                  # Regressions-Hyperparameter
+```
+
 ---
 
 ## ▶️ Starten der Anwendung
@@ -269,10 +277,10 @@ automatisch in die erwarteten Pfade.
 Für jeden Einstiegspunkt müssen die trainierten Modellgewichte vorhanden sein:
 
 ```
-src/models/multi_head_insurance/multi_head_model.pt   # Textklassifikation (PyTorch)
-src/models/cnn/cnn_model.keras                        # Bildklassifikation (TensorFlow/Keras)
-src/models/cnn/classes.json                           # Klassenreihenfolge ["01-minor","02-moderate","03-severe"]
-src/models/regression/regression_model.pkl            # Kostenprognose (scikit-learn)
+checkpoints/multi_head_model.pt   # Textklassifikation (PyTorch)
+checkpoints/cnn_model.keras                        # Bildklassifikation (TensorFlow/Keras)
+checkpoints/classes.json                           # Klassenreihenfolge ["01-minor","02-moderate","03-severe"]
+checkpoints/regression_model.pkl            # Kostenprognose (scikit-learn)
 ```
 
 > Die Gewichtsdateien werden **nicht** im Repository eingecheckt und müssen lokal
@@ -349,13 +357,13 @@ InterGeeks-Agiles-Programmierprojekt/
 ├── app/
 │   ├── dashboard.py               # Streamlit-Dashboard (Frontend der Pipeline)
 │   └── app_config.py              # Konstanten der Anwendungsebene
+├── checkpoints/                   # Ordner für Modellgewichte (nicht eingecheckt)
 ├── data/
 │   └── raw/                       # Rohdaten (nicht eingecheckt)
 ├── docs/                          # Dokumentation & Sprint-Protokolle
 ├── prassentation/                 # Präsentationsfolien
 ├── sql/
-│   ├── schema.sql                 # PostgreSQL-Schema
-│   └── export/                    # SQL-Export
+│   └── schema.sql                 # PostgreSQL-Schema
 ├── src/
 │   ├── analysis/                  # Statistik-Notebooks
 │   ├── automation/
@@ -368,10 +376,13 @@ InterGeeks-Agiles-Programmierprojekt/
 │   ├── models/
 │   │   ├── cnn/                   # CNN: Training & Vorhersage
 │   │   │   ├── cnn_config.py
-│   │   │   ├── train_cnn.py
-│   │   │   └── predict_image.py
+│   │   │   └── ...
 │   │   ├── multi_head_insurance/  # Multi-Head-Textmodell
+│   │   │   ├── multi_head_config.py
+│   │   │   └── ...
 │   │   └── regression/            # Kostenregressionsmodell
+│   │   │   ├── regression_config.py
+│   │   │   └── ...
 │   ├── services/
 │   │   ├── pipeline.py            # zentrale Pipeline (Backend)
 │   │   └── train_all.py           # Training aller Modelle
@@ -384,6 +395,7 @@ InterGeeks-Agiles-Programmierprojekt/
 │   └── config.toml                # Theme im Farbschema der Hochschule
 ├── main.py                        # CLI-Einstiegspunkt
 ├── requirements.txt
+├── pyproject.toml
 └── .env                           # Lokale Konfiguration (nicht eingecheckt)
 ```
 
