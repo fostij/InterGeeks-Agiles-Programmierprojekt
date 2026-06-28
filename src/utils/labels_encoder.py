@@ -5,6 +5,7 @@ Erzeugt für jedes Zielfeld einen LabelEncoder anhand der bekannten Werte
 synthetisch erzeugten Trainingsbeispiele und speichert sie als JSONL-Datei.
 """
 
+from pathlib import Path
 import logging
 import json
 from sklearn.preprocessing import LabelEncoder
@@ -62,6 +63,9 @@ def prepare_pipeline_and_save_jsonl(
             "size": len(le.classes_)
         }
 
+
+    Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+    
     try:
         with open(output_file, "w", encoding="utf-8") as f:
             for sample in raw_samples:

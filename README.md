@@ -124,6 +124,9 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 # Abhängigkeiten installieren
 pip install -r requirements.txt
 
+#Dieser Schritt registriert src/ und app/ als Python-Pakete im virtuellen Environment. Danach funktionieren alle Importe (from src.services.pipeline import ...) korrekt — unabhängig davon, aus welchem Verzeichnis ein Skript gestartet wird. Ohne diesen Schritt können ModuleNotFoundError-Fehler auftreten.
+pip install -e .
+
 # Zugangsdaten konfigurieren (.env aus Vorlage erstellen und ausfüllen)
 cp .env.example .env
 ```
@@ -248,10 +251,10 @@ data/
 
 ```bash
 # Alle drei Modelle nacheinander trainieren
-python src/services/train_all.py
+python -m src.services.train_all
 
 # Alternativ einzeln, z. B. nur das CNN:
-python src/models/cnn/train_cnn.py
+python -m src.models.cnn.train_cnn
 ```
 
 Das Skript `train_all.py` trainiert alle Modelle und speichert die Gewichte

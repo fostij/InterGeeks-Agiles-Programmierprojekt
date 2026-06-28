@@ -65,7 +65,6 @@ class GermanInsuranceDataset(Dataset):
         sample = self.samples[idx]
         text = sample["text"]
         labels = sample["labels"]
-        target_price = sample["target_price"]
 
         encoding = self.tokenizer(
             text,
@@ -78,7 +77,6 @@ class GermanInsuranceDataset(Dataset):
         item = {
             "input_ids": encoding["input_ids"].squeeze(0),
             "attention_mask": encoding["attention_mask"].squeeze(0),
-            "target_price": torch.tensor(target_price, dtype=torch.float32)
         }
 
         for field, val in labels.items():

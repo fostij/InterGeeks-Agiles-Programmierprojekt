@@ -2,18 +2,10 @@
 # dashboard.py — Web-Oberfläche (Streamlit) als Frontend für der Pipeline
 # ---------------------------------------------------------------------
 
-import re
-import sys
-import tempfile
-from pathlib import Path
-
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from sqlalchemy import text
-
-# Projektordner zum Pfad hinzufügen, damit src-Module importierbar sind
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+from src.utils.data_loader import get_insurance_dataset
 
 from src.services.pipeline import Pipeline, PredictionResult
 from src.db.pipeline_repository import PipelineResultRepository
@@ -56,7 +48,7 @@ def get_pipeline() -> Pipeline:
 def load_dataset():
     """Lädt den Datensatz für den Diagramm-Vergleich. None, falls Datei fehlt."""
     try:
-        return pd.read_csv("data/raw/dataset.csv")
+        return get_insurance_dataset()
     except FileNotFoundError:
         return None
     
@@ -167,18 +159,15 @@ if st.button("Prognose erstellen", type="primary"):
         st.warning("Bitte eine Schadensmeldung eingeben oder ein Foto hochladen.")
         st.stop()
 
-    # Foto (aus dem Speicher) temporär auf Platte schreiben, da die
-    # Pipeline einen Dateipfad erwartet.
-    photo_path = None
+    # Foto (aus dem Speicher) direkt als Byte-Stream übergeben,
+    # da die Pipeline kein Dateipfad mehr benötigt.
+    photo_bytes = None
     if photo is not None:
-        suffix = Path(photo.name).suffix or ".jpg"
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(photo.getbuffer())
-            photo_path = tmp.name
+        photo_bytes = photo.getvalue()
 
     with st.spinner("Analyse läuft ..."):
         pipeline = get_pipeline()
-        result = pipeline.run(text=message, photo_path=photo_path, source="dashboard")
+        result = pipeline.run(text=message, photo_bytes=photo_bytes, source="dashboard")
 
     render_result(result)
     if result.predicted_amount is not None:
