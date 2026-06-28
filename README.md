@@ -259,6 +259,19 @@ python -m src.services.train_all
 python -m src.models.cnn.train_cnn
 ```
 
+Vor dem Start in `src/services/train_all.py` festlegen, was ausgeführt werden soll:
+
+```python
+# Datenbankbefüllung (nur nötig, wenn noch nicht geschehen)
+RUN_LOAD_INSURANCE_DATA = False
+RUN_LOAD_VEHICLE_CATALOG = False
+
+# Modelle trainieren
+RUN_TRAIN_MULTIHEAD = False
+RUN_TRAIN_CNN = True
+RUN_TRAIN_REGRESSION = True
+```
+
 Das Skript `train_all.py` trainiert alle Modelle und speichert die Gewichte
 automatisch in die erwarteten Pfade.
 
