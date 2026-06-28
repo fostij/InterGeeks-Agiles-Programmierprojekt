@@ -251,10 +251,10 @@ data/
 
 ```bash
 # Alle drei Modelle nacheinander trainieren
-python src/services/train_all.py
+python -m src.services.train_all
 
 # Alternativ einzeln, z. B. nur das CNN:
-python src/models/cnn/train_cnn.py
+python -m src.models.cnn.train_cnn
 ```
 
 Das Skript `train_all.py` trainiert alle Modelle und speichert die Gewichte
