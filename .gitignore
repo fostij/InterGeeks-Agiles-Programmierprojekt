@@ -18,6 +18,9 @@ env/
 ENV/
 .venv*
 
+# SQL-Dumps und Backups
+backup.sql
+
 # ==========================================
 # Abhängigkeiten und Build-Dateien
 # ==========================================
