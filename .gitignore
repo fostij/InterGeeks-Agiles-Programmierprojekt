@@ -1,35 +1,98 @@
-# Python
+# ==========================================
+# Python & Laufzeitumgebung
+# ==========================================
 __pycache__/
-.ipynb_checkpoints/
 *.py[cod]
 *.pyo
 *.pyd
+*.pyc
 *.so
-*.egg
-*.egg-info/
-dist/
-build/
-*.whl
+.ipynb_checkpoints/
+.pytest_cache/
+*.pytest_cache/
 
-# Data files
-data/raw/ 
-src/models/cnn/model.keras
-src/models/cnn/classes.json
-# Virtual environments
+# Virtuelle Umgebungen
 .venv/
 venv/
 env/
 ENV/
+.venv*
 
-# Byte-compiled
-*.pyc
-
-# Distribution / packaging
+# ==========================================
+# Abhängigkeiten und Build-Dateien
+# ==========================================
 .Python
+build/
+developer-volans/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
+*.whl
 
-# Unit test / coverage reports
+# ==========================================
+# Datendateien, Logs und Modell-Cache
+# ==========================================
+# Datenordner
+data/raw/
+/data/raw/
+/data/output/
+checkpoints/
+
+# Spezifische Modelle und Checkpoints
+src/models/cnn/model.keras
+src/models/cnn/classes.json
+/incident_type_model/
+/flan_ie_model/
+/catboost_info/
+checkpoints/
+
+# Formate für große Datensätze und Modell-Artefakte
+*.csv
+*.pt
+*.pkl
+*.keras
+*.jsonl
+network_config.json
+
+# Logdateien
+*.log
+logs/
+
+# ==========================================
+# Lokale Einstellungen (IDE & OS)
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Pre-commit Konfiguration
+.pre-commit-config.yaml
+
+# Umgebungsvariablen (Geheimnisse gehören nicht in Git)
+.env
+.env.*
+!.env.example
+
+# ==========================================
+# Tests und Berichte (Coverage)
+# ==========================================
 htmlcov/
 .tox/
 .coverage
@@ -40,50 +103,11 @@ coverage.xml
 *.cover
 .hypothesis/
 
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Environment variables
-.env
-.env.*
-!.env.example
-
-# Logs
-*.log
-logs/
-
-
-*.csv
+# ==========================================
+# Mediendateien & Lokale Dokumentation
+# ==========================================
 *.png
 *.jpg
 *.txt
-.csv
-.png
-.jpg
-
-# Personal Presentation & Documentation Notes
 presentation_notes.txt
 Documentation.md
-
-/catboost_info/
-
-/incident_type_model/
-/flan_ie_model/
-*.jsonl
-network_config.json
-*.pt
-/data/output/
-/data/raw/
-*.pkl
-*.keras
-checkpoints/
-.venv*
-*.pytest_cache/
-.pre-commit-config.yaml
